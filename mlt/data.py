@@ -94,7 +94,6 @@ class DAMatrix(object):
 
         return path_to_dir
 
-
     @classmethod
     def load(cls, path_to_dir):
         # Load DAMatrix
@@ -121,17 +120,7 @@ class NFLDAMatrix(DAMatrix):
 
     def __init__(self, n_datasets=1000, n_algos=13, theta=0.5, 
                  name="NFLDAMatrix"):
-        datasets = []
-        for i in range(n_datasets):
-            dataset_name = "Dataset {}".format(i)
-            dataset = BetaDataset(name=dataset_name)
-            datasets.append(dataset)
-
-        algos = []
-        for i in range(n_algos):
-            algo_name = "Algorithm {}".format(i)
-            algo = BetaAlgo(name=algo_name)
-            algos.append(algo)
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
 
         self.theta = theta
 
@@ -161,19 +150,9 @@ class Case2DAMatrix(DAMatrix):
           thetas: list of float, Bernoulli parameters for each algorithm
           name: str, name of the DA matrix
         """
-
-        datasets = []
-        for i in range(n_datasets):
-            dataset_name = "Dataset {}".format(i)
-            dataset = BetaDataset(name=dataset_name)
-            datasets.append(dataset)
-
-        algos = []
         n_algos = len(thetas)
-        for i in range(n_algos):
-            algo_name = "Algorithm {}".format(i)
-            algo = BetaAlgo(name=algo_name)
-            algos.append(algo)
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
 
         self.thetas = thetas
 
@@ -196,25 +175,14 @@ class Case2DAMatrix(DAMatrix):
 
 class Case3dDAMatrix(DAMatrix):
 
-    def __init__(self, n_datasets = 1000, name='Case3d_DAMatrix'):
+    def __init__(self, n_datasets=1000, name='Case3d_DAMatrix'):
         """Example 3.d. in the MLT paper.
         """
         epsilon = 1e-1
-
         self.thetas = [0.5 + epsilon, 0.5 - epsilon, 0.5]
-
-        datasets = []
-        for i in range(n_datasets):
-            dataset_name = "Dataset {}".format(i)
-            dataset = BetaDataset(name=dataset_name)
-            datasets.append(dataset)
-
         n_algos = 4
-        algos = []
-        for i in range(n_algos):
-            algo_name = "Algorithm {}".format(i)
-            algo = BetaAlgo(name=algo_name)
-            algos.append(algo)
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
 
         DAMatrix.__init__(self, datasets=datasets, algos=algos, name=name)
         
@@ -234,6 +202,21 @@ class Case3dDAMatrix(DAMatrix):
             return entry
         else:
             return entry
+
+
+class BinarizedMultivariateGaussianDAMatrix(DAMatrix):
+
+    def __init__(self, mu, cov, n_datasets=1000):
+        """
+        Args:
+          mu: 1-D NumPy array, mean vector of the Multi-vriate Gaussian 
+            random variable (MGRV)
+          cov: 2-D NumPy array, covariance matrix of the MGRV
+          n_datasets: int, number of datasets (i.e. rows) in the DA matrix
+        """
+        n_algos = len(mu)
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
         
 
 class BetaAlgo(object):
@@ -260,3 +243,33 @@ class BetaDataset(object):
         s = "BetaDataset(name={}, data={}, metadata={})"\
             .format(self.name, self.data, self.metadata)
         return s
+
+
+def get_anonymized_lists(n_datasets, n_algos):
+    """Given number of datasets `n_datasets` and number of algorithms 
+    `n_algos`, return one list of anonymized BetaDataset objects and 
+    one list of anonymizd BetaAlgo objects.
+
+    Args:
+      n_datasets: int, number of datasets
+      n_algos: int, number of algorithms
+
+    Returns:
+      datasets: list of BetaDataset objects, each dataset having a name 
+        'Dataset i'
+      algos: list of BetaAlgo objects, each algorithm having a name 
+        'Algorithm i'
+    """
+    datasets = []
+    for i in range(n_datasets):
+        dataset_name = "Dataset {}".format(i)
+        dataset = BetaDataset(name=dataset_name)
+        datasets.append(dataset)
+
+    algos = []
+    for i in range(n_algos):
+        algo_name = "Algorithm {}".format(i)
+        algo = BetaAlgo(name=algo_name)
+        algos.append(algo)
+
+    return datasets, algos
