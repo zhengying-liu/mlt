@@ -206,18 +206,30 @@ class Case3dDAMatrix(DAMatrix):
 
 class BinarizedMultivariateGaussianDAMatrix(DAMatrix):
 
-    def __init__(self, mu, cov, n_datasets=1000):
+    def __init__(self, mean, cov, n_datasets=1000, 
+                 name='BinarizedMultivariateGaussian'):
         """
         Args:
-          mu: 1-D NumPy array, mean vector of the Multi-vriate Gaussian 
+          mean: 1-D array, mean vector of the Multi-vriate Gaussian 
             random variable (MGRV)
-          cov: 2-D NumPy array, covariance matrix of the MGRV
+          cov: 2-D array, covariance matrix of the MGRV
           n_datasets: int, number of datasets (i.e. rows) in the DA matrix
         """
-        n_algos = len(mu)
+        n_algos = len(mean)
 
         datasets, algos = get_anonymized_lists(n_datasets, n_algos)
-        
+
+        perfs = np.random.multivariate_normal(mean, cov, size=n_datasets)
+        threshold = np.median(perfs)
+        binarized_perfs = (perfs > threshold).astype(int)
+
+        DAMatrix.__init__(self, 
+            perfs=binarized_perfs,
+            datasets=datasets, 
+            algos=algos, 
+            name=name, 
+            )
+
 
 class BetaAlgo(object):
 

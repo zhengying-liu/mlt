@@ -1,12 +1,13 @@
 # Author: Zhengying Liu
 # Creation date: 4 Dec 2020
 
-from mlt.data import DAMatrix
 from typing import List
 
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.transforms as mtransforms
+import numpy as np
+
+from mlt.data import DAMatrix
 
 
 class S0A1MetaLearner(object):
