@@ -93,7 +93,11 @@ class GreedyMetaLearner(S0A1MetaLearner):
         indices_algo_to_reveal = []
         while len(filtered_da_matrix) > 0 and\
               len(indices_algo_to_reveal) < n_algos:
-            idx = np.argmax(np.mean(filtered_da_matrix, axis=0))
+            se = set(indices_algo_to_reveal)
+            indices_remaining = [i for i in range(n_algos) if not i in se]
+            mean_remaining = np.mean(filtered_da_matrix, axis=0)
+            cols_remaining = mean_remaining[indices_remaining]
+            idx = indices_remaining[np.argmax(cols_remaining)]
             indices_algo_to_reveal.append(idx)
             new_filtered_da_matrix = []
             for row in filtered_da_matrix:
@@ -203,7 +207,7 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
 
     for im, meta_learner in enumerate(meta_learners):
 
-        ax = fig.axes[0]
+        # ax = fig.axes[0]
 
         li_history = []
         for i in range(n_runs):
@@ -248,6 +252,72 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
     plt.title(title)
     plt.legend()
     plt.show()
+
+
+def run_leave_one_out(meta_learners, da_matrix, n_runs=100):
+    """
+    Args: 
+      meta_learners: list of S0A1MetaLearner objects
+      da_matrix: DAMatrix object
+      n_runs: int, number of leave-one-out runs
+    """
+
+    fig = plt.figure()
+    ax = plt.subplot(1, 1, 1)
+
+    n_datasets = len(da_matrix.perfs)
+    if n_runs > n_datasets:
+        n_runs = n_datasets
+
+    indices_dataset = np.random.choice(n_datasets, n_runs)
+
+    for im, meta_learner in enumerate(meta_learners):
+
+        li_history = []
+        for i_dataset in indices_dataset:
+            meta_learner.history = []
+            meta_learner.meta_fit(da_matrix, excluded_indices=[i_dataset])
+            meta_learner.fit(da_matrix, i_dataset)
+            history = meta_learner.history
+            li_history.append(history)
+        
+        li_perfs = []
+        for history in li_history:
+            perfs = [perf for _, _, perf in history]
+            cs = np.cumsum(perfs)
+            binarized_perfs = (cs >= 1).astype(int)
+            li_perfs.append(binarized_perfs)
+        
+        perfs_arr = np.array(li_perfs)
+        mean_perfs = np.mean(perfs_arr, axis=0)
+        std_perfs = np.std(perfs_arr, axis=0)
+
+        trans_offset = mtransforms.offset_copy(ax.transData, fig=fig, 
+                                               x=0, 
+                                               y=-1.5*im, 
+                                               units='points')
+
+        # plt.plot(mean_perfs, 'b')
+        ax.errorbar(np.arange(len(mean_perfs)) + 1, mean_perfs, yerr=std_perfs, 
+                    #  linestyle='dashed',
+                    # ecolor='red',
+                    barsabove=True,
+                    capsize=2,
+                    label=meta_learner.name,
+                    transform=trans_offset,
+                    marker='o',
+                    markersize=5,
+                    )
+
+    plt.xlabel("# algorithms tried so far")
+    plt.ylabel('Probability of having found at least one good algo so far')
+    title = "Learning curve on \nda-matrix: {}, n_runs: {}"\
+        .format(da_matrix.name, n_runs)
+    plt.title(title)
+    plt.legend()
+    plt.show()
+
+    return fig
     
 
 

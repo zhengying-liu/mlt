@@ -175,7 +175,7 @@ class Case2DAMatrix(DAMatrix):
 
 class Case3dDAMatrix(DAMatrix):
 
-    def __init__(self, n_datasets=1000, name='Case3d_DAMatrix'):
+    def __init__(self, n_datasets=10000, name='Case3d_DAMatrix'):
         """Example 3.d. in the MLT paper.
         """
         epsilon = 1e-1
@@ -202,6 +202,14 @@ class Case3dDAMatrix(DAMatrix):
             return entry
         else:
             return entry
+
+
+def ComplementaryDAMatrix(DAMatrix):
+
+    def __init__(self, n_datasets=10000, name='ComplementaryDAMatrix'):
+        # TODO
+        pass
+
 
 
 class BinarizedMultivariateGaussianDAMatrix(DAMatrix):
