@@ -69,5 +69,5 @@ def test_case3d_damatrix():
 if __name__ == '__main__':
     # test_run_and_plot_learning_curve()
     # test_mean_meta_learner()
-    test_all_meta_learners()
-    # test_case3d_damatrix()
+    # test_all_meta_learners()
+    test_case3d_damatrix()

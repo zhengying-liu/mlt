@@ -6,6 +6,8 @@ from typing import List
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.transforms as mtransforms
+
 
 class S0A1MetaLearner(object):
     """Abstract class for S0A1 meta-learner according to Zhengying Liu's PhD 
@@ -195,9 +197,10 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
         excluded_indices = [-1]
 
     fig = plt.figure()
-    ax = fig.add_subplot(111)
+    ax = plt.subplot(1, 1, 1)
 
-    for meta_learner in meta_learners:
+
+    for im, meta_learner in enumerate(meta_learners):
 
         ax = fig.axes[0]
 
@@ -220,6 +223,11 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
         mean_perfs = np.mean(perfs_arr, axis=0)
         std_perfs = np.std(perfs_arr, axis=0)
 
+        trans_offset = mtransforms.offset_copy(ax.transData, fig=fig, 
+                                               x=0.0, 
+                                               y=-1.5*im, 
+                                               units='points')
+
         # plt.plot(mean_perfs, 'b')
         ax.errorbar(np.arange(len(mean_perfs)) + 1, mean_perfs, yerr=std_perfs, 
                     #  linestyle='dashed',
@@ -227,6 +235,9 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
                     barsabove=True,
                     capsize=2,
                     label=meta_learner.name,
+                    transform=trans_offset,
+                    marker='o',
+                    markersize=5,
                     )
 
     plt.xlabel("# algorithms tried so far")
