@@ -119,7 +119,8 @@ class DAMatrix(object):
 
 class NFLDAMatrix(DAMatrix):
 
-    def __init__(self, n_datasets=100, n_algos=20, theta=0.5, name=None):
+    def __init__(self, n_datasets=1000, n_algos=13, theta=0.5, 
+                 name="NFLDAMatrix"):
         datasets = []
         for i in range(n_datasets):
             dataset_name = "Dataset {}".format(i)
@@ -133,9 +134,6 @@ class NFLDAMatrix(DAMatrix):
             algos.append(algo)
 
         self.theta = theta
-
-        if name is None:
-            name = "NFLDAMatrix"
 
         DAMatrix.__init__(self, datasets=datasets, algos=algos, name=name)
 
@@ -153,6 +151,89 @@ class NFLDAMatrix(DAMatrix):
         else:
             return entry
 
+
+class Case2DAMatrix(DAMatrix):
+
+    def __init__(self, n_datasets=1000, thetas=None, name='Case2DAMatrix'):
+        """
+        Args:
+          n_datasets: number datasets in the DA matrix
+          thetas: list of float, Bernoulli parameters for each algorithm
+          name: str, name of the DA matrix
+        """
+
+        datasets = []
+        for i in range(n_datasets):
+            dataset_name = "Dataset {}".format(i)
+            dataset = BetaDataset(name=dataset_name)
+            datasets.append(dataset)
+
+        algos = []
+        n_algos = len(thetas)
+        for i in range(n_algos):
+            algo_name = "Algorithm {}".format(i)
+            algo = BetaAlgo(name=algo_name)
+            algos.append(algo)
+
+        self.thetas = thetas
+
+        DAMatrix.__init__(self, datasets=datasets, algos=algos, name=name)
+        
+        for i in range(n_datasets):
+            for j in range(n_algos):
+                self.eval(i, j)
+
+    def eval(self, i_dataset, i_algo):
+        entry = self.perfs[i_dataset][i_algo]
+        if np.isnan(entry) or entry is None:
+            # Bernoulli distribution with parameter `self.theta`
+            entry = int(np.random.rand() < self.thetas[i_algo])
+            self.perfs[i_dataset][i_algo] = entry
+            return entry
+        else:
+            return entry
+
+
+class Case3dDAMatrix(DAMatrix):
+
+    def __init__(self, n_datasets = 1000, name='Case3d_DAMatrix'):
+        """Example 3.d. in the MLT paper.
+        """
+        epsilon = 1e-1
+
+        self.thetas = [0.5 + epsilon, 0.5 - epsilon, 0.5]
+
+        datasets = []
+        for i in range(n_datasets):
+            dataset_name = "Dataset {}".format(i)
+            dataset = BetaDataset(name=dataset_name)
+            datasets.append(dataset)
+
+        n_algos = 4
+        algos = []
+        for i in range(n_algos):
+            algo_name = "Algorithm {}".format(i)
+            algo = BetaAlgo(name=algo_name)
+            algos.append(algo)
+
+        DAMatrix.__init__(self, datasets=datasets, algos=algos, name=name)
+        
+        for i in range(n_datasets):
+            for j in range(n_algos):
+                self.eval(i, j)
+
+    def eval(self, i_dataset, i_algo):
+        entry = self.perfs[i_dataset][i_algo]
+        if np.isnan(entry) or entry is None:
+            # Bernoulli distribution with parameter `self.theta`
+            if i_algo == 3:
+                entry = 1 - self.perfs[i_dataset][2]
+            else:
+                entry = int(np.random.rand() < self.thetas[i_algo])
+            self.perfs[i_dataset][i_algo] = entry
+            return entry
+        else:
+            return entry
         
 
 class BetaAlgo(object):
