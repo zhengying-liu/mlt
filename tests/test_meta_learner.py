@@ -6,11 +6,13 @@ from mlt.meta_learner import MeanMetaLearner
 from mlt.meta_learner import GreedyMetaLearner
 from mlt.meta_learner import OptimalMetaLearner
 from mlt.meta_learner import run_and_plot_learning_curve, run_leave_one_out
+from mlt.meta_learner import run_meta_validation
 from mlt.data import DAMatrix, NFLDAMatrix, Case2DAMatrix, Case3dDAMatrix
 from mlt.data import BinarizedMultivariateGaussianDAMatrix
 
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 
 def test_run_and_plot_learning_curve():
@@ -104,7 +106,6 @@ def test_leave_one_out(ClsDAMatrix, kwargs=None,
 
     print("Performance matrix:")
     print(da_matrix.perfs)
-    np.savetxt('perfs.npy', da_matrix.perfs.astype(int), fmt='%i')
 
     if meta_learners is None:
         rs_meta_learner = RandomSearchMetaLearner()
@@ -118,9 +119,92 @@ def test_leave_one_out(ClsDAMatrix, kwargs=None,
         if include_optimal:
             meta_learners.append(optimal_meta_learner)
 
-    fig = run_leave_one_out(meta_learners, da_matrix)
+    fig = run_leave_one_out(meta_learners, da_matrix, n_runs=10)
+
+    # Save results
+    np.savetxt('perfs.npy', da_matrix.perfs.astype(int), fmt='%i')
     fig.savefig('result.jpg')
 
+
+def get_the_meta_learners(exclude_optimal=False):
+    rs_meta_learner = RandomSearchMetaLearner()
+    mean_meta_learner = MeanMetaLearner()
+    greedy_meta_learner = GreedyMetaLearner()
+    meta_learners = [
+        rs_meta_learner, 
+        mean_meta_learner, 
+        greedy_meta_learner, 
+        ]
+    if not exclude_optimal:
+        optimal_meta_learner = OptimalMetaLearner()
+        meta_learners.append(optimal_meta_learner)
+    return meta_learners
+
+
+def test_run_meta_validation():
+    da_matrix = Case3dDAMatrix(n_datasets=2000)
+    meta_learners = get_the_meta_learners()
+    run_meta_validation(meta_learners, da_matrix)
+
+
+def run_expe(da_matrix, meta_learners, 
+             name_expe=None,
+             results_dir='../results'):
+    """Use run_meta_validation to run experiment."""
+    fig = run_meta_validation(meta_learners, da_matrix)
+
+    # Create directory for the experiment
+    expe_dir = os.path.join(results_dir, str(name_expe))
+    os.makedirs(expe_dir, exist_ok=True)
+
+    # Save performance matrix and the figure
+    perfs_path = os.path.join(expe_dir, 'perfs.npy')
+    fig_path = os.path.join(expe_dir, 'learning-curves.jpg')
+    np.savetxt(perfs_path, da_matrix.perfs.astype(int), fmt='%i')
+    fig.savefig(fig_path)
+
+
+def run_nfl():
+    n_datasets = 20000
+    n_algos = 5
+    perfs = (np.random.rand(n_datasets, n_algos) < 0.5).astype(int)
+    da_matrix = DAMatrix(perfs=perfs)
+    meta_learners = get_the_meta_learners()
+    name_expe = 'nfl'
+    run_expe(da_matrix, meta_learners, name_expe=name_expe)
+
+
+def run_3a():
+    n_datasets = 20000
+    n_algos = 5
+    col = (np.random.rand(n_datasets, 1) < 0.5).astype(int)
+    perfs = np.concatenate([col] * n_algos, axis=1)
+    da_matrix = DAMatrix(perfs=perfs)
+    meta_learners = get_the_meta_learners()
+    name_expe = '3a-repeated-columns'
+    run_expe(da_matrix, meta_learners, name_expe=name_expe)
+
+
+def run_3b():
+    n_datasets = 20000
+    n_algos = 2
+    X1 = (np.random.rand(n_datasets, 1) < 0.5).astype(int)
+    X2 = 1 - X1
+    perfs = np.concatenate([X1, X2], axis=1)
+    da_matrix = DAMatrix(perfs=perfs)
+    meta_learners = get_the_meta_learners()
+    name_expe = '3b-complementary-2-algos'
+
+    run_expe(da_matrix, meta_learners, name_expe=name_expe)
+
+
+def run_3d():
+    n_datasets = 20000
+    da_matrix = Case3dDAMatrix(n_datasets=n_datasets)
+    meta_learners = get_the_meta_learners()
+    name_expe = '3d'
+    run_expe(da_matrix, meta_learners, name_expe=name_expe)
+    
 
 
 if __name__ == '__main__':
@@ -128,27 +212,9 @@ if __name__ == '__main__':
     # test_mean_meta_learner()
     # test_all_meta_learners()
     # test_case3d_damatrix()
+    # test_run_meta_validation()
 
-    ClsDAMatrix = BinarizedMultivariateGaussianDAMatrix
-    # ClsDAMatrix = Case3dDAMatrix
-
-    # Parameters
-    n_algos = 10
-    N = n_algos
-    # mean = np.arange(N) / N
-    mean = np.ones(N) * 0.5
-    # rank = 1
-    # C = np.arange(rank * N).reshape(N, rank)
-    # cov = C.dot(C.T)
-    cov = np.eye(N)
-    kwargs = {
-        'mean': mean,
-        'cov': cov,
-        'n_datasets': 10000,
-        }
-
-    # test_damatrix(BinarizedMultivariateGaussianDAMatrix, kwargs=kwargs,
-    #     i_dataset=-1,
-    # )
-    test_leave_one_out(ClsDAMatrix, kwargs=kwargs)
-    # test_leave_one_out(ClsDAMatrix)
+    # run_3a()
+    # run_3b()
+    # run_3d()
+    run_nfl()

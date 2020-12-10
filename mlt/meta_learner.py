@@ -46,7 +46,7 @@ class RandomSearchMetaLearner(S0A1MetaLearner):
 
         # Random order of algos for random search
         indices_algo_to_reveal = np.random.permutation(n_algos)
-        print("Random search indices_algo_to_reveal", indices_algo_to_reveal)
+        # print("Random search indices_algo_to_reveal", indices_algo_to_reveal)
         for i_algo in indices_algo_to_reveal:
             perf = da_matrix.eval(i_dataset, i_algo)
             self.history.append((i_dataset, i_algo, perf))
@@ -69,7 +69,7 @@ class MeanMetaLearner(S0A1MetaLearner):
         self.indices_algo_to_reveal = np.argsort(self.theta_estimation)[::-1]
         # print(self.theta_estimation)
         # print(self.indices_algo_to_reveal)
-        print("Mean indices_algo_to_reveal", self.indices_algo_to_reveal)
+        # print("Mean indices_algo_to_reveal", self.indices_algo_to_reveal)
 
         for i_algo in self.indices_algo_to_reveal:
             perf = da_matrix.eval(i_dataset, i_algo)
@@ -118,7 +118,7 @@ class GreedyMetaLearner(S0A1MetaLearner):
         
         self.indices_algo_to_reveal = indices_algo_to_reveal
 
-        print("Greedy indices_algo_to_reveal", self.indices_algo_to_reveal)
+        # print("Greedy indices_algo_to_reveal", self.indices_algo_to_reveal)
 
 
     def fit(self, da_matrix: DAMatrix, i_dataset: int):
@@ -145,7 +145,7 @@ class OptimalMetaLearner(S0A1MetaLearner):
                 self.indices_algo_to_reveal = perm
                 max_alc = alc
 
-        print("Optimal indices_algo_to_reveal", self.indices_algo_to_reveal)
+        # print("Optimal indices_algo_to_reveal", self.indices_algo_to_reveal)
 
     def fit(self, da_matrix: DAMatrix, i_dataset: int):
         for i_algo in self.indices_algo_to_reveal:
@@ -229,7 +229,7 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
         std_perfs = np.std(perfs_arr, axis=0)
 
         trans_offset = mtransforms.offset_copy(ax.transData, fig=fig, 
-                                               x=0.0, 
+                                               x=1.5*im, 
                                                y=-1.5*im, 
                                                units='points')
 
@@ -293,7 +293,7 @@ def run_leave_one_out(meta_learners, da_matrix, n_runs=100):
         std_perfs = np.std(perfs_arr, axis=0)
 
         trans_offset = mtransforms.offset_copy(ax.transData, fig=fig, 
-                                               x=0, 
+                                               x=1.5*im, 
                                                y=-1.5*im, 
                                                units='points')
 
@@ -313,6 +313,78 @@ def run_leave_one_out(meta_learners, da_matrix, n_runs=100):
     plt.ylabel('Probability of having found at least one good algo so far')
     title = "Learning curve on \nda-matrix: {}, n_runs: {}"\
         .format(da_matrix.name, n_runs)
+    plt.title(title)
+    plt.legend()
+    plt.show()
+
+    return fig
+
+
+def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5):
+    """Run meta-training on and meta-validation by making a train/valid split.
+
+    Args: 
+      meta_learners: list of S0A1MetaLearner objects
+      da_matrix: DAMatrix object
+      perc_valid: float, percentage for validation. Will use **last** examples
+        for validation.
+    """
+
+    fig = plt.figure()
+    ax = plt.subplot(1, 1, 1)
+
+    n_datasets = len(da_matrix.perfs)
+
+    n_valid = int(perc_valid * n_datasets) # Number of lines for meta-validation
+    indices_valid = range(n_datasets - n_valid, n_datasets)
+
+    for im, meta_learner in enumerate(meta_learners):
+
+        # Meta-training
+        meta_learner.meta_fit(da_matrix, excluded_indices=indices_valid)
+
+        # Validation
+        li_history = []
+        for i_dataset in indices_valid:
+            meta_learner.history = []
+            meta_learner.fit(da_matrix, i_dataset)
+            li_history.append(meta_learner.history)
+        
+        li_perfs = []
+        for history in li_history:
+            perfs = [perf for _, _, perf in history]
+            cs = np.cumsum(perfs)
+            binarized_perfs = (cs >= 1).astype(int)
+            li_perfs.append(binarized_perfs)
+        
+        perfs_arr = np.array(li_perfs)
+        mean_perfs = np.mean(perfs_arr, axis=0)
+        std_perfs = np.std(perfs_arr, axis=0)
+
+        trans_offset = mtransforms.offset_copy(ax.transData, fig=fig, 
+                                               x=1.5*im, 
+                                               y=-1.5*im, 
+                                               units='points')
+
+        # Error bar for estimating the mean performance
+        yerr = std_perfs / np.sqrt(n_valid)
+        
+        # Plotting learning curves with error bars
+        ax.errorbar(np.arange(len(mean_perfs)) + 1, 
+                    mean_perfs, 
+                    yerr=yerr,
+                    barsabove=True,
+                    capsize=2,
+                    label=meta_learner.name,
+                    transform=trans_offset,
+                    marker='o',
+                    markersize=5,
+                    )
+
+    plt.xlabel("# algorithms tried so far")
+    plt.ylabel('Probability of having found at least one good algo so far')
+    title = "Learning curve on \nda-matrix: {}"\
+        .format(da_matrix.name)
     plt.title(title)
     plt.legend()
     plt.show()

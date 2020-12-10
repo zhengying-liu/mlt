@@ -36,6 +36,12 @@ class DAMatrix(object):
             self.perfs = np.full(shape, np.nan)
         else:
             self.perfs = perfs
+            n_datasets, n_algos = perfs.shape
+            datasets, algos = get_anonymized_lists(n_datasets, n_algos)
+            if not self.datasets:
+                self.datasets = datasets
+            if not self.algos:
+                self.algos = algos
 
     def append_dataset(self, dataset):
         pass
