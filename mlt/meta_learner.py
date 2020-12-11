@@ -3,9 +3,11 @@
 
 from typing import List
 
+import json
 import matplotlib.pyplot as plt
 import matplotlib.transforms as mtransforms
 import numpy as np
+import os
 
 from mlt.data import DAMatrix
 
@@ -46,7 +48,7 @@ class RandomSearchMetaLearner(S0A1MetaLearner):
 
         # Random order of algos for random search
         indices_algo_to_reveal = np.random.permutation(n_algos)
-        # print("Random search indices_algo_to_reveal", indices_algo_to_reveal)
+        print("Random search indices_algo_to_reveal", indices_algo_to_reveal)
         for i_algo in indices_algo_to_reveal:
             perf = da_matrix.eval(i_dataset, i_algo)
             self.history.append((i_dataset, i_algo, perf))
@@ -64,13 +66,10 @@ class MeanMetaLearner(S0A1MetaLearner):
                 filtered_da_matrix.append(row)
         filtered_da_matrix = np.array(filtered_da_matrix)
         self.theta_estimation = np.mean(filtered_da_matrix, axis=0)
+        self.indices_algo_to_reveal = np.argsort(self.theta_estimation)[::-1]
+        print("Mean indices_algo_to_reveal", self.indices_algo_to_reveal)
 
     def fit(self, da_matrix: DAMatrix, i_dataset: int):
-        self.indices_algo_to_reveal = np.argsort(self.theta_estimation)[::-1]
-        # print(self.theta_estimation)
-        # print(self.indices_algo_to_reveal)
-        # print("Mean indices_algo_to_reveal", self.indices_algo_to_reveal)
-
         for i_algo in self.indices_algo_to_reveal:
             perf = da_matrix.eval(i_dataset, i_algo)
             self.history.append((i_dataset, i_algo, perf))
@@ -83,6 +82,7 @@ class GreedyMetaLearner(S0A1MetaLearner):
 
         n_algos = len(da_matrix.algos)
 
+        # Exlude the indices for validation
         excluded_indices = set(excluded_indices)
         filtered_da_matrix = []
         for i, row in enumerate(da_matrix.perfs):
@@ -99,6 +99,8 @@ class GreedyMetaLearner(S0A1MetaLearner):
             cols_remaining = mean_remaining[indices_remaining]
             idx = indices_remaining[np.argmax(cols_remaining)]
             indices_algo_to_reveal.append(idx)
+
+            # Only let the rows with row[idx] == 0 remain
             new_filtered_da_matrix = []
             for row in filtered_da_matrix:
                 if row[idx] == 0:
@@ -118,7 +120,7 @@ class GreedyMetaLearner(S0A1MetaLearner):
         
         self.indices_algo_to_reveal = indices_algo_to_reveal
 
-        # print("Greedy indices_algo_to_reveal", self.indices_algo_to_reveal)
+        print("Greedy indices_algo_to_reveal", self.indices_algo_to_reveal)
 
 
     def fit(self, da_matrix: DAMatrix, i_dataset: int):
@@ -139,13 +141,15 @@ class OptimalMetaLearner(S0A1MetaLearner):
 
         max_alc = 0
 
+        self.indices_algo_to_reveal = np.arange(n_algos)
+
         for perm in all_perms(elements):
             alc = get_meta_train_alc(perm, perfs_meta_train)
             if alc > max_alc:
                 self.indices_algo_to_reveal = perm
                 max_alc = alc
 
-        # print("Optimal indices_algo_to_reveal", self.indices_algo_to_reveal)
+        print("Optimal indices_algo_to_reveal", self.indices_algo_to_reveal)
 
     def fit(self, da_matrix: DAMatrix, i_dataset: int):
         for i_algo in self.indices_algo_to_reveal:
@@ -226,6 +230,7 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
         
         perfs_arr = np.array(li_perfs)
         mean_perfs = np.mean(perfs_arr, axis=0)
+        alc = sum(mean_perfs) / len(mean_perfs)
         std_perfs = np.std(perfs_arr, axis=0)
 
         trans_offset = mtransforms.offset_copy(ax.transData, fig=fig, 
@@ -239,7 +244,7 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
                     # ecolor='red',
                     barsabove=True,
                     capsize=2,
-                    label=meta_learner.name,
+                    label="{} - {}".format(meta_learner.name, alc),
                     transform=trans_offset,
                     marker='o',
                     markersize=5,
@@ -334,6 +339,7 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5):
     ax = plt.subplot(1, 1, 1)
 
     n_datasets = len(da_matrix.perfs)
+    n_algos = len(da_matrix.algos)
 
     n_valid = int(perc_valid * n_datasets) # Number of lines for meta-validation
     indices_valid = range(n_datasets - n_valid, n_datasets)
@@ -359,6 +365,7 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5):
         
         perfs_arr = np.array(li_perfs)
         mean_perfs = np.mean(perfs_arr, axis=0)
+        alc = sum(mean_perfs) / len(mean_perfs)
         std_perfs = np.std(perfs_arr, axis=0)
 
         trans_offset = mtransforms.offset_copy(ax.transData, fig=fig, 
@@ -375,13 +382,17 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5):
                     yerr=yerr,
                     barsabove=True,
                     capsize=2,
-                    label=meta_learner.name,
+                    label="{} - {:.4f}".format(meta_learner.name, alc),
                     transform=trans_offset,
                     marker='o',
                     markersize=5,
                     )
 
     plt.xlabel("# algorithms tried so far")
+    if n_algos <= 10:
+        ticks = (np.arange(n_algos) + 1).astype(int)
+        labels = [str(x) for x in ticks]
+        plt.xticks(ticks=ticks, labels=labels)
     plt.ylabel('Probability of having found at least one good algo so far')
     title = "Learning curve on \nda-matrix: {}"\
         .format(da_matrix.name)
@@ -390,6 +401,247 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5):
     plt.show()
 
     return fig
+
+
+def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5):
+    fig = plt.figure()
+    ax = plt.subplot(1, 1, 1)
+
+    alcs = []
+
+    max_n_algos = 0
+
+    for im, da_matrix in enumerate(da_matrices):
+        n_datasets = len(da_matrix.perfs)
+        n_algos = len(da_matrix.algos)
+        max_n_algos = max(max_n_algos, n_algos)
+
+        n_valid = int(perc_valid * n_datasets) # Number of lines for meta-validation
+        indices_valid = range(n_datasets - n_valid, n_datasets)
+
+        # Meta-training
+        meta_learner.meta_fit(da_matrix, excluded_indices=indices_valid)
+
+        # Validation
+        li_history = []
+        for i_dataset in indices_valid:
+            meta_learner.history = []
+            meta_learner.fit(da_matrix, i_dataset)
+            li_history.append(meta_learner.history)
+        
+        li_perfs = []
+        for history in li_history:
+            perfs = [perf for _, _, perf in history]
+            cs = np.cumsum(perfs)
+            binarized_perfs = (cs >= 1).astype(int)
+            li_perfs.append(binarized_perfs)
+        
+        perfs_arr = np.array(li_perfs)
+        mean_perfs = np.mean(perfs_arr, axis=0)
+        alc = sum(mean_perfs) / len(mean_perfs)
+        std_perfs = np.std(perfs_arr, axis=0)
+
+        trans_offset = mtransforms.offset_copy(ax.transData, fig=fig, 
+                                            x=1.5*im, 
+                                            y=-1.5*im, 
+                                            units='points')
+
+        # Error bar for estimating the mean performance
+        yerr = std_perfs / np.sqrt(n_valid)
+        
+        # Plotting learning curves with error bars
+        ax.errorbar(np.arange(len(mean_perfs)) + 1, 
+                    mean_perfs, 
+                    yerr=yerr,
+                    barsabove=True,
+                    capsize=2,
+                    label="{} - {:.4f}".format(da_matrix.name, alc),
+                    transform=trans_offset,
+                    marker='o',
+                    markersize=5,
+                    )
+
+        alcs.append(alc)
+
+    plt.xlabel("# algorithms tried so far")
+    if max_n_algos <= 10:
+        ticks = (np.arange(max_n_algos) + 1).astype(int)
+        labels = [str(x) for x in ticks]
+        plt.xticks(ticks=ticks, labels=labels)
+    plt.ylabel('Probability of having found at least one good algo so far')
+    title = "Learning curve with \nmeta-learner: {}"\
+        .format(meta_learner.name)
+    plt.title(title)
+    plt.legend()
+    plt.show()
+
+    return fig, alcs
+
+
+def binarize(matrix, quantile=0.5):
+    threshold = np.quantile(matrix, quantile)
+    binarized_matrix = (matrix > threshold).astype(int)
+    return binarized_matrix
+
+
+def save_fig(fig, name_expe=None, results_dir='../results',
+             filename='learning-curves.jpg'):
+    # Create directory for the experiment
+    expe_dir = os.path.join(results_dir, str(name_expe))
+    os.makedirs(expe_dir, exist_ok=True)
+    # Save figure
+    fig_path = os.path.join(expe_dir, filename)
+    fig.savefig(fig_path)
+
+
+def save_perfs(perfs, name_expe=None, results_dir='../results', 
+               filename='perfs.npy'):
+    # Create directory for the experiment
+    expe_dir = os.path.join(results_dir, str(name_expe))
+    os.makedirs(expe_dir, exist_ok=True)
+    # Save numpy matrix
+    perfs_path = os.path.join(expe_dir, filename)
+    np.savetxt(perfs_path, perfs, fmt='%i')
+
+
+def get_the_meta_learners(exclude_optimal=False):
+    rs_meta_learner = RandomSearchMetaLearner()
+    mean_meta_learner = MeanMetaLearner()
+    greedy_meta_learner = GreedyMetaLearner()
+    meta_learners = [
+        rs_meta_learner, 
+        mean_meta_learner, 
+        greedy_meta_learner, 
+        ]
+    if not exclude_optimal:
+        optimal_meta_learner = OptimalMetaLearner()
+        meta_learners.append(optimal_meta_learner)
+    return meta_learners
+
+
+def generate_binary_matrix_with_rank(rank, m, n):
+    """Generate a binary matrix of shape `(m, n)` of rank `rank`."""
+    if rank < 0:
+        raise ValueError("The rank should be positive.")
+    if rank == 0:
+        return np.zeros((m, n))
+    if rank > min(m, n):
+        raise ValueError("The rank must be smaller than min(m, n).")
+
+    if m <= n:
+        while True:
+            rmatrix = (np.random.rand(rank, n) < 0.5).astype(int)
+            if np.linalg.matrix_rank(rmatrix) == rank:
+                break
+        if rank < m:
+            remaining_rows = []
+            for _ in range(m - rank):
+                idx = np.random.randint(rank)
+                row = rmatrix[idx]
+                remaining_rows.append(row)
+            remaining_rows = np.concatenate(remaining_rows).reshape(m - rank, n)
+            matrix = np.concatenate([rmatrix, remaining_rows])
+        else:
+            matrix = rmatrix
+        return matrix
+    else:
+        assert rank <= n
+        matrix = generate_binary_matrix_with_rank(rank, n, m)
+        return matrix.T
+
+
+def plot_meta_learner_with_different_ranks(n_datasets=20000, n_algos=5):
+    da_matrices = []
+    for rank in range(1, n_algos + 1):
+        U = np.random.rand(n_datasets, rank)
+        V = np.random.rand(rank, n_algos)
+        matrix = U.dot(V)
+        bm = binarize(matrix)
+
+        real_rank = np.linalg.matrix_rank(bm)
+
+        da_matrix = DAMatrix(
+            perfs=bm,
+            name="Rank: {} (before binarizing) - Real rank: {}"\
+                .format(rank, real_rank),
+        )
+        da_matrices.append(da_matrix)
+    
+    meta_learners = get_the_meta_learners()
+    for meta_learner in meta_learners:
+        fig, _ = plot_multiple_da_matrices(meta_learner, da_matrices)
+        name_expe = '{}-different-ranks'.format(meta_learner.name)
+        save_fig(fig, name_expe=name_expe)
+        for i, da_matrix in enumerate(da_matrices):
+            filename = "perfs-{}.npy".format(i)
+            save_perfs(da_matrix.perfs, name_expe=name_expe, filename=filename)
+
+
+def plot_meta_learner_with_different_true_ranks(n_datasets=20000, n_algos=5):
+    da_matrices = []
+    for rank in range(0, n_algos + 1):
+        matrix = generate_binary_matrix_with_rank(rank, n_datasets, n_algos)
+
+        da_matrix = DAMatrix(
+            perfs=matrix,
+            name="Rank: {}".format(rank),
+        )
+        da_matrices.append(da_matrix)
+
+    alcss = {}
+    
+    meta_learners = get_the_meta_learners()
+    for im, meta_learner in enumerate(meta_learners):
+        fig, alcs = plot_multiple_da_matrices(meta_learner, da_matrices)
+        name_expe = '{}-different-true-ranks'.format(meta_learner.name)
+        save_fig(fig, name_expe=name_expe)
+        for i, da_matrix in enumerate(da_matrices):
+            filename = "perfs-rank={}.npy".format(i)
+            save_perfs(da_matrix.perfs, name_expe=name_expe, filename=filename)
+
+        
+        alcss[meta_learner.name] = alcs
+
+    filepath = '../results/alc-vs-rank.json'
+    with open(filepath, 'w') as f:
+        json.dump(alcss, f)
+
+
+def plot_alc_vs_rank():
+    filepath = '../results/alc-vs-rank.json'
+    with open(filepath, 'r') as f:
+        alcss = json.load(f)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+
+    epsilon = 1e-2
+
+    for im, ml in enumerate(alcss):
+        alcs = np.array(alcss[ml])
+
+        noise = im * epsilon
+        
+        ax.plot(np.arange(len(alcs)) + noise, alcs + noise, 
+                label=ml,
+                marker='o',
+                markersize=5,
+        )
+
+    plt.xlabel("Rank of the DA matrix")
+    plt.ylabel('Area under Learning Curve (ALC)')
+    title = "ALC vs rank"
+    plt.title(title)
+    plt.legend()
+    plt.show()
+    name_expe = 'alc-vs-rank'
+    save_fig(fig, name_expe=name_expe)
+    return fig
+
+    
+    
+
+
     
 
 

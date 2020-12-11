@@ -7,6 +7,12 @@ from mlt.meta_learner import GreedyMetaLearner
 from mlt.meta_learner import OptimalMetaLearner
 from mlt.meta_learner import run_and_plot_learning_curve, run_leave_one_out
 from mlt.meta_learner import run_meta_validation
+from mlt.meta_learner import plot_meta_learner_with_different_ranks
+from mlt.meta_learner import plot_meta_learner_with_different_true_ranks
+from mlt.meta_learner import plot_alc_vs_rank
+from mlt.meta_learner import binarize
+from mlt.meta_learner import get_the_meta_learners
+from mlt.meta_learner import generate_binary_matrix_with_rank
 from mlt.data import DAMatrix, NFLDAMatrix, Case2DAMatrix, Case3dDAMatrix
 from mlt.data import BinarizedMultivariateGaussianDAMatrix
 
@@ -126,21 +132,6 @@ def test_leave_one_out(ClsDAMatrix, kwargs=None,
     fig.savefig('result.jpg')
 
 
-def get_the_meta_learners(exclude_optimal=False):
-    rs_meta_learner = RandomSearchMetaLearner()
-    mean_meta_learner = MeanMetaLearner()
-    greedy_meta_learner = GreedyMetaLearner()
-    meta_learners = [
-        rs_meta_learner, 
-        mean_meta_learner, 
-        greedy_meta_learner, 
-        ]
-    if not exclude_optimal:
-        optimal_meta_learner = OptimalMetaLearner()
-        meta_learners.append(optimal_meta_learner)
-    return meta_learners
-
-
 def test_run_meta_validation():
     da_matrix = Case3dDAMatrix(n_datasets=2000)
     meta_learners = get_the_meta_learners()
@@ -168,9 +159,9 @@ def run_nfl():
     n_datasets = 20000
     n_algos = 5
     perfs = (np.random.rand(n_datasets, n_algos) < 0.5).astype(int)
-    da_matrix = DAMatrix(perfs=perfs)
-    meta_learners = get_the_meta_learners()
     name_expe = 'nfl'
+    da_matrix = DAMatrix(perfs=perfs, name=name_expe)
+    meta_learners = get_the_meta_learners()
     run_expe(da_matrix, meta_learners, name_expe=name_expe)
 
 
@@ -179,9 +170,9 @@ def run_3a():
     n_algos = 5
     col = (np.random.rand(n_datasets, 1) < 0.5).astype(int)
     perfs = np.concatenate([col] * n_algos, axis=1)
-    da_matrix = DAMatrix(perfs=perfs)
-    meta_learners = get_the_meta_learners()
     name_expe = '3a-repeated-columns'
+    da_matrix = DAMatrix(perfs=perfs, name=name_expe)
+    meta_learners = get_the_meta_learners()
     run_expe(da_matrix, meta_learners, name_expe=name_expe)
 
 
@@ -191,20 +182,70 @@ def run_3b():
     X1 = (np.random.rand(n_datasets, 1) < 0.5).astype(int)
     X2 = 1 - X1
     perfs = np.concatenate([X1, X2], axis=1)
-    da_matrix = DAMatrix(perfs=perfs)
-    meta_learners = get_the_meta_learners()
     name_expe = '3b-complementary-2-algos'
-
+    da_matrix = DAMatrix(perfs=perfs, name=name_expe)
+    meta_learners = get_the_meta_learners()
     run_expe(da_matrix, meta_learners, name_expe=name_expe)
 
 
 def run_3d():
     n_datasets = 20000
-    da_matrix = Case3dDAMatrix(n_datasets=n_datasets)
-    meta_learners = get_the_meta_learners()
     name_expe = '3d'
+    da_matrix = Case3dDAMatrix(n_datasets=n_datasets, name=name_expe)
+    meta_learners = get_the_meta_learners()
     run_expe(da_matrix, meta_learners, name_expe=name_expe)
-    
+
+
+def run_3f():
+    n_datasets = 20000
+    name_expe = '3f'
+    epsilon = 1e-1
+    A = (np.random.rand(n_datasets * 2, 1) < 0.5 + 2 * epsilon).astype(int)
+    B = (np.random.rand(n_datasets * 2, 1) < 0.5 +  epsilon).astype(int)
+    C = (np.random.rand(n_datasets * 2, 1) < 0.5 -  epsilon).astype(int)
+    D = (np.random.rand(n_datasets * 2, 1) < 0.5 -  2 * epsilon).astype(int)
+    perfs = np.concatenate([A, B, C, D], axis=1)
+
+    valid_rows = []
+    for row in perfs:
+        if not (row[0] == 0 and row[1] == 0 and row[2] == 0):
+            valid_rows.append(row)
+        if len(valid_rows) == n_datasets:
+            break
+    perfs = np.array(valid_rows)[:n_datasets]
+    assert len(perfs) == n_datasets
+    da_matrix = DAMatrix(perfs=perfs, name=name_expe)
+    meta_learners = get_the_meta_learners()
+    run_expe(da_matrix, meta_learners, name_expe=name_expe)
+
+
+def run_3g():
+    n_datasets = 20000
+    name_expe = '3g'
+    epsilon = 1e-1
+    X1 = (np.random.rand(n_datasets, 1) < 0.5 - epsilon).astype(int)
+    X2 = 1 - X1
+    perfs = np.concatenate([X1, X2], axis=1)
+    da_matrix = DAMatrix(perfs=perfs, name=name_expe)
+    meta_learners = get_the_meta_learners()
+    run_expe(da_matrix, meta_learners, name_expe=name_expe)
+
+
+def test_binarize():
+    matrix = np.random.rand(10, 3)
+    bm = binarize(matrix)
+    print(matrix)
+    print(bm)
+
+
+def test_generate_binary_matrix_with_rank():
+    for m in range(1, 10):
+        for n in range(1, 10):
+            for rank in range(min(m, n) + 1):
+                matrix = generate_binary_matrix_with_rank(rank, m, n)
+                print(matrix)
+                print(rank)
+                assert np.linalg.matrix_rank(matrix) == rank
 
 
 if __name__ == '__main__':
@@ -217,4 +258,12 @@ if __name__ == '__main__':
     # run_3a()
     # run_3b()
     # run_3d()
-    run_nfl()
+    # run_3f()
+    # run_3g()
+    # run_nfl()
+    
+    # test_binarize()
+    plot_meta_learner_with_different_ranks()
+    # test_generate_binary_matrix_with_rank()
+    # plot_meta_learner_with_different_true_ranks()
+    # plot_alc_vs_rank()
