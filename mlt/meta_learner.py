@@ -6,6 +6,7 @@ from typing import List
 import json
 import matplotlib.pyplot as plt
 import matplotlib.transforms as mtransforms
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 import os
 
@@ -50,6 +51,24 @@ class RandomSearchMetaLearner(S0A1MetaLearner):
         indices_algo_to_reveal = np.random.permutation(n_algos)
         print("Random search indices_algo_to_reveal", indices_algo_to_reveal)
         for i_algo in indices_algo_to_reveal:
+            perf = da_matrix.eval(i_dataset, i_algo)
+            self.history.append((i_dataset, i_algo, perf))
+
+
+class OnceRandomSearchMetaLearner(S0A1MetaLearner):
+
+    def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None):
+        """Nothing to do for random search"""
+        self.name = 'random'
+        n_algos = len(da_matrix.algos)
+
+        # Random order of algos for random search
+        self.indices_algo_to_reveal = np.random.permutation(n_algos)
+        print("Once random search indices_algo_to_reveal", 
+              self.indices_algo_to_reveal)
+
+    def fit(self, da_matrix: DAMatrix, i_dataset: int):
+        for i_algo in self.indices_algo_to_reveal:
             perf = da_matrix.eval(i_dataset, i_algo)
             self.history.append((i_dataset, i_algo, perf))
 
@@ -208,6 +227,7 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
     fig = plt.figure()
     ax = plt.subplot(1, 1, 1)
 
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
     for im, meta_learner in enumerate(meta_learners):
 
@@ -259,22 +279,29 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
     plt.show()
 
 
-def run_leave_one_out(meta_learners, da_matrix, n_runs=100):
+def run_leave_one_out(meta_learners, da_matrix, n_runs=100, fig=None, 
+                      use_all=False):
     """
     Args: 
       meta_learners: list of S0A1MetaLearner objects
       da_matrix: DAMatrix object
       n_runs: int, number of leave-one-out runs
     """
+    if fig is None:
+        fig = plt.figure()
+        ax = plt.subplot(1, 1, 1)
+    else:
+        ax = fig.axes[0]
 
-    fig = plt.figure()
-    ax = plt.subplot(1, 1, 1)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
     n_datasets = len(da_matrix.perfs)
     if n_runs > n_datasets:
         n_runs = n_datasets
 
     indices_dataset = np.random.choice(n_datasets, n_runs)
+    if use_all:
+        indices_dataset = range(n_datasets)
 
     for im, meta_learner in enumerate(meta_learners):
 
@@ -306,6 +333,7 @@ def run_leave_one_out(meta_learners, da_matrix, n_runs=100):
         ax.errorbar(np.arange(len(mean_perfs)) + 1, mean_perfs, yerr=std_perfs, 
                     #  linestyle='dashed',
                     # ecolor='red',
+                    color=get_meta_learner_color(meta_learner.name),
                     barsabove=True,
                     capsize=2,
                     label=meta_learner.name,
@@ -325,7 +353,147 @@ def run_leave_one_out(meta_learners, da_matrix, n_runs=100):
     return fig
 
 
-def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5):
+def get_meta_learner_color(meta_learner_name):
+    if meta_learner_name == 'mean':
+        color = 'green'
+    elif meta_learner_name == 'greedy':
+        color = 'red'
+    else:
+        color = None
+    return color
+
+
+def get_meta_learner_marker(meta_learner_name):
+    if meta_learner_name == 'mean':
+        marker = '<'
+    elif meta_learner_name == 'greedy':
+        marker = 'o'
+    elif meta_learner_name == 'random':
+        marker = 's'
+    else:
+        marker = None
+    return marker
+
+
+def get_da_matrix_from_real_dataset_dir(dataset_dir):
+    if os.path.isdir(dataset_dir):
+        data_files = [x for x in os.listdir(dataset_dir) 
+                        if x.endswith('.data')]
+        if len(data_files) != 1:
+            raise ValueError("The dataset directory {} ".format(dataset_dir) + 
+                                "should contain one `.data` file but got " +
+                                "{}.".format(data_files))
+        data_file = data_files[0]
+        data_path = os.path.join(dataset_dir, data_file)
+        name_expe = data_file.split('.')[0]
+
+        # Load real dataset and binarize
+        perf = binarize(np.loadtxt(data_path))
+        da_matrix = DAMatrix(perfs=perf, name=name_expe)
+        return da_matrix
+    else:
+        raise ValueError("Not a directory: {}".format(dataset_dir))
+
+
+def get_markevery(n_points, n_markers=10):
+    if n_points < 30:
+        return 1
+    else:
+        return n_points // n_markers
+
+
+def run_once_random(da_matrix, perc_valid=0.5, n_meta_learners=100, fig=None,
+                    show_legend=False, show_fig=False, leave_one_out=False):
+    if fig is None:
+        fig = plt.figure()
+    ax = plt.subplot(1, 1, 1)
+
+    n_datasets = len(da_matrix.perfs)
+    n_algos = len(da_matrix.algos)
+
+    if leave_one_out:
+        n_meta_learners = n_datasets
+
+    learning_curves = []
+    for i in range(n_meta_learners):
+        meta_learner = OnceRandomSearchMetaLearner()
+
+        if not leave_one_out:
+            n_valid = int(perc_valid * n_datasets) # Number of lines for meta-validation
+            indices_valid = range(n_datasets - n_valid, n_datasets)
+        else:
+            indices_valid = [i]
+
+        # Meta-training
+        meta_learner.meta_fit(da_matrix, excluded_indices=indices_valid)
+
+        # Validation
+        li_history = []
+        for i_dataset in indices_valid:
+            meta_learner.history = []
+            meta_learner.fit(da_matrix, i_dataset)
+            li_history.append(meta_learner.history)
+        
+        li_perfs = []
+        for history in li_history:
+            perfs = [perf for _, _, perf in history]
+            cs = np.cumsum(perfs)
+            binarized_perfs = (cs >= 1).astype(int)
+            li_perfs.append(binarized_perfs)
+        
+        perfs_arr = np.array(li_perfs)
+        mean_perfs = np.mean(perfs_arr, axis=0)
+        std_perfs = np.std(perfs_arr, axis=0)
+    
+        learning_curves.append(mean_perfs)
+
+    learning_curves = np.array(learning_curves)
+
+    median_perfs = np.quantile(learning_curves, q=0.5, axis=0)
+
+    cmap = plt.get_cmap('Purples')
+
+    q_perfss = []
+    quantiles = [0.05, 0.25, 0.5, 0.75, 0.95]
+    for i, quantile in enumerate(quantiles):
+        q_perfs = np.quantile(learning_curves, q=quantile, axis=0)
+        q_perfss.append(q_perfs)
+        if len(q_perfss) >= 2:
+            x = np.arange(n_algos) + 1
+            y1 = q_perfss[-2]
+            y2 = q_perfss[-1]
+            qp1 = int(quantiles[i - 1] * 100)
+            qp2 = int(quantiles[i] * 100)
+            label = "Quantiles {}-{}%".format(qp1, qp2)
+            color = cmap(quantile)
+            ax.fill_between(x, y1, y2, label=label, color=color)
+
+    alc = sum(median_perfs) / len(median_perfs)
+
+    ax.plot(np.arange(n_algos) + 1, 
+                    median_perfs, 
+                    label="{} - {:.4f}".format(meta_learner.name, alc),
+                    # transform=trans_offset,
+                    marker=get_meta_learner_marker(meta_learner.name),
+                    markersize=5,
+                    markevery=get_markevery(n_algos),
+                    )
+    
+    plt.xlabel("# algorithms tried so far")
+    plt.ylabel('Probability of having found at least one good algo so far')
+    title = "Learning curve on \nda-matrix: {}"\
+        .format(da_matrix.name)
+    plt.title(title)
+    if show_legend:
+        plt.legend()
+    if show_fig:
+        plt.show()
+
+    return fig
+
+
+def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
+                        with_error_bars=False):
     """Run meta-training on and meta-validation by making a train/valid split.
 
     Args: 
@@ -333,10 +501,16 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5):
       da_matrix: DAMatrix object
       perc_valid: float, percentage for validation. Will use **last** examples
         for validation.
+      fig: plt.figure 
     """
+    if fig is None:
+        fig = plt.figure()
+        ax = plt.subplot(1, 1, 1)
+    else:
+        ax = fig.axes[0]
 
-    fig = plt.figure()
-    ax = plt.subplot(1, 1, 1)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    
 
     n_datasets = len(da_matrix.perfs)
     n_algos = len(da_matrix.algos)
@@ -377,16 +551,31 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5):
         yerr = std_perfs / np.sqrt(n_valid)
         
         # Plotting learning curves with error bars
-        ax.errorbar(np.arange(len(mean_perfs)) + 1, 
-                    mean_perfs, 
-                    yerr=yerr,
-                    barsabove=True,
-                    capsize=2,
-                    label="{} - {:.4f}".format(meta_learner.name, alc),
-                    transform=trans_offset,
-                    marker='o',
-                    markersize=5,
-                    )
+        if with_error_bars:
+            ax.errorbar(np.arange(len(mean_perfs)) + 1, 
+                        mean_perfs, 
+                        yerr=yerr,
+                        color=get_meta_learner_color(meta_learner.name),
+                        barsabove=True,
+                        capsize=2,
+                        label="{} - {:.4f}".format(meta_learner.name, alc),
+                        transform=trans_offset,
+                        marker=get_meta_learner_marker(meta_learner.name),
+                        markersize=5,
+                        markevery=get_markevery(len(mean_perfs)),
+                        alpha=0.5,
+                        )
+        else:
+            ax.plot(np.arange(len(mean_perfs)) + 1, 
+                        mean_perfs, 
+                        color=get_meta_learner_color(meta_learner.name),
+                        label="{} - {:.4f}".format(meta_learner.name, alc),
+                        transform=trans_offset,
+                        marker=get_meta_learner_marker(meta_learner.name),
+                        markersize=5,
+                        markevery=get_markevery(len(mean_perfs)),
+                        alpha=0.5,
+                        )
 
     plt.xlabel("# algorithms tried so far")
     if n_algos <= 10:
@@ -406,6 +595,8 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5):
 def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5):
     fig = plt.figure()
     ax = plt.subplot(1, 1, 1)
+
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
     alcs = []
 
@@ -457,8 +648,9 @@ def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5):
                     capsize=2,
                     label="{} - {:.4f}".format(da_matrix.name, alc),
                     transform=trans_offset,
-                    marker='o',
+                    marker=get_meta_learner_marker(meta_learner.name),
                     markersize=5,
+                    markevery=get_markevery(len(mean_perfs)),
                     )
 
         alcs.append(alc)
@@ -615,6 +807,8 @@ def plot_alc_vs_rank():
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
 
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
     epsilon = 1e-2
 
     for im, ml in enumerate(alcss):
@@ -624,8 +818,9 @@ def plot_alc_vs_rank():
         
         ax.plot(np.arange(len(alcs)) + noise, alcs + noise, 
                 label=ml,
-                marker='o',
+                marker=get_meta_learner_marker(ml),
                 markersize=5,
+                markevery=get_markevery(len(alcs)),
         )
 
     plt.xlabel("Rank of the DA matrix")

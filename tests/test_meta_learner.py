@@ -11,8 +11,12 @@ from mlt.meta_learner import plot_meta_learner_with_different_ranks
 from mlt.meta_learner import plot_meta_learner_with_different_true_ranks
 from mlt.meta_learner import plot_alc_vs_rank
 from mlt.meta_learner import binarize
+from mlt.meta_learner import save_fig
+from mlt.meta_learner import save_perfs
 from mlt.meta_learner import get_the_meta_learners
 from mlt.meta_learner import generate_binary_matrix_with_rank
+from mlt.meta_learner import run_once_random
+from mlt.meta_learner import get_da_matrix_from_real_dataset_dir
 from mlt.data import DAMatrix, NFLDAMatrix, Case2DAMatrix, Case3dDAMatrix
 from mlt.data import BinarizedMultivariateGaussianDAMatrix
 
@@ -140,9 +144,14 @@ def test_run_meta_validation():
 
 def run_expe(da_matrix, meta_learners, 
              name_expe=None,
-             results_dir='../results'):
+             results_dir='../results', with_once_random=False):
     """Use run_meta_validation to run experiment."""
-    fig = run_meta_validation(meta_learners, da_matrix)
+    if with_once_random:
+        fig = run_once_random(da_matrix)
+    else:
+        fig = None
+
+    fig = run_meta_validation(meta_learners, da_matrix, fig=fig)
 
     # Create directory for the experiment
     expe_dir = os.path.join(results_dir, str(name_expe))
@@ -245,7 +254,70 @@ def test_generate_binary_matrix_with_rank():
                 matrix = generate_binary_matrix_with_rank(rank, m, n)
                 print(matrix)
                 print(rank)
-                assert np.linalg.matrix_rank(matrix) == rank
+                assert np.linalg.matrix_rank(matrix) == ran
+
+
+def run_on_real_dataset(dataset_dir):
+    """`dataset_dir` should contain a file `*.data` in NumPy format."""
+    if os.path.isdir(dataset_dir):
+        data_files = [x for x in os.listdir(dataset_dir) 
+                        if x.endswith('.data')]
+        if len(data_files) != 1:
+            raise ValueError("The dataset directory {} ".format(dataset_dir) + 
+                                "should contain one `.data` file but got " +
+                                "{}.".format(data_files))
+        data_file = data_files[0]
+        data_path = os.path.join(dataset_dir, data_file)
+        name_expe = data_file.split('.')[0]
+
+        # Load real dataset and binarize
+        perf = binarize(np.loadtxt(data_path))
+        da_matrix = DAMatrix(perfs=perf, name=name_expe)
+        meta_learners = get_the_meta_learners(exclude_optimal=True)[1:] # Exclude random
+
+        run_expe(da_matrix, meta_learners=meta_learners, 
+                name_expe=name_expe, with_once_random=True)
+    else:
+        raise ValueError("Not a directory: {}".format(dataset_dir))
+
+
+def run_on_all_real_datasets(datasets_dir=None):
+    if datasets_dir is None:
+        datasets_dir = "../datasets"
+    
+    for d in os.listdir(datasets_dir):
+        dataset_dir = os.path.join(datasets_dir, d)
+        if os.path.isdir(dataset_dir):
+            run_on_real_dataset(dataset_dir)
+
+
+def get_real_datasets_dataset_dirs(datasets_dir=None):
+    if datasets_dir is None:
+        datasets_dir = "../datasets"
+    
+    dataset_dirs = []
+    for d in os.listdir(datasets_dir):
+        dataset_dir = os.path.join(datasets_dir, d)
+        if os.path.isdir(dataset_dir):
+            dataset_dirs.append(dataset_dir)
+    return dataset_dirs
+
+
+def test_run_once_random():
+    da_matrix = Case3dDAMatrix(n_datasets=20000)
+    run_once_random(da_matrix, n_meta_learners=10)
+
+
+def run_leave_one_out_on_real_datasets():
+    dataset_dirs = get_real_datasets_dataset_dirs()
+    meta_learners = get_the_meta_learners(exclude_optimal=True)[1:]
+    for dataset_dir in dataset_dirs:
+        name_expe = "LOO-{}".format(os.path.basename(dataset_dir))
+        da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
+        fig = run_once_random(da_matrix, leave_one_out=True)
+        fig = run_leave_one_out(meta_learners, da_matrix, use_all=True, fig=fig)
+        save_fig(fig, name_expe=name_expe)
+        save_perfs(da_matrix.perfs, name_expe=name_expe)
 
 
 if __name__ == '__main__':
@@ -263,7 +335,13 @@ if __name__ == '__main__':
     # run_nfl()
     
     # test_binarize()
-    plot_meta_learner_with_different_ranks()
+    # plot_meta_learner_with_different_ranks()
     # test_generate_binary_matrix_with_rank()
     # plot_meta_learner_with_different_true_ranks()
     # plot_alc_vs_rank()
+
+    run_on_all_real_datasets()
+
+    # test_run_once_random()
+
+    # run_leave_one_out_on_real_datasets()
