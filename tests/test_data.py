@@ -1,7 +1,7 @@
 # Author: Zhengying Liu
 # Creation data: 4 Dec 2020
 
-from mlt.data import DAMatrix, NFLDAMatrix
+from mlt.data import DAMatrix, NFLDAMatrix, ComplementaryDAMatrix
 from mlt.data import BinarizedMultivariateGaussianDAMatrix
 
 import numpy as np
@@ -20,8 +20,13 @@ def test_binarized_mg():
     cov = C.dot(C.T)
     da_matrix = BinarizedMultivariateGaussianDAMatrix(mean, cov, n_datasets=10)
     print(da_matrix.perfs)
+
+def test_complementary():
+    da_matrix = ComplementaryDAMatrix()
+    print(da_matrix.perfs)
     
 
 if __name__ == '__main__':
     # test_nfldamatrix()
-    test_binarized_mg()
+    # test_binarized_mg()
+    test_complementary()

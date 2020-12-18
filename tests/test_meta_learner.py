@@ -17,6 +17,8 @@ from mlt.meta_learner import get_the_meta_learners
 from mlt.meta_learner import generate_binary_matrix_with_rank
 from mlt.meta_learner import run_once_random
 from mlt.meta_learner import get_da_matrix_from_real_dataset_dir
+from mlt.meta_learner import plot_meta_learner_with_different_cardinal_clique
+from mlt.meta_learner import plot_alc_vs_cardinal_clique
 from mlt.data import DAMatrix, NFLDAMatrix, Case2DAMatrix, Case3dDAMatrix
 from mlt.data import BinarizedMultivariateGaussianDAMatrix
 
@@ -158,10 +160,8 @@ def run_expe(da_matrix, meta_learners,
     os.makedirs(expe_dir, exist_ok=True)
 
     # Save performance matrix and the figure
-    perfs_path = os.path.join(expe_dir, 'perfs.npy')
-    fig_path = os.path.join(expe_dir, 'learning-curves.jpg')
-    np.savetxt(perfs_path, da_matrix.perfs.astype(int), fmt='%i')
-    fig.savefig(fig_path)
+    save_perfs(da_matrix.perfs.astype(int), name_expe=name_expe)
+    save_fig(fig, name_expe=name_expe)
 
 
 def run_nfl():
@@ -254,7 +254,7 @@ def test_generate_binary_matrix_with_rank():
                 matrix = generate_binary_matrix_with_rank(rank, m, n)
                 print(matrix)
                 print(rank)
-                assert np.linalg.matrix_rank(matrix) == ran
+                assert np.linalg.matrix_rank(matrix) == rank
 
 
 def run_on_real_dataset(dataset_dir):
@@ -326,6 +326,8 @@ if __name__ == '__main__':
     # test_all_meta_learners()
     # test_case3d_damatrix()
     # test_run_meta_validation()
+    # test_binarize()
+    # test_generate_binary_matrix_with_rank()
 
     # run_3a()
     # run_3b()
@@ -334,14 +336,14 @@ if __name__ == '__main__':
     # run_3g()
     # run_nfl()
     
-    # test_binarize()
     # plot_meta_learner_with_different_ranks()
-    # test_generate_binary_matrix_with_rank()
     # plot_meta_learner_with_different_true_ranks()
     # plot_alc_vs_rank()
 
-    run_on_all_real_datasets()
-
-    # test_run_once_random()
+    # run_on_all_real_datasets()
 
     # run_leave_one_out_on_real_datasets()
+
+    plot_meta_learner_with_different_cardinal_clique()
+
+    # plot_alc_vs_cardinal_clique()

@@ -11,6 +11,7 @@ import numpy as np
 import os
 
 from mlt.data import DAMatrix
+from mlt.data import ComplementaryDAMatrix
 
 
 class S0A1MetaLearner(object):
@@ -213,7 +214,8 @@ def get_meta_train_alc(perm, perfs_meta_train):
 def run_and_plot_learning_curve(meta_learners, da_matrix, 
                             n_runs=9, 
                             i_dataset=-1,
-                            excluded_indices=None):
+                            excluded_indices=None,
+                            show_title=False):
     """
     Args: 
       meta_learners: list of S0A1MetaLearner objects
@@ -274,13 +276,14 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
     plt.ylabel('Probability of having found at least one good algo so far')
     title = "Learning curve on \nda-matrix: {}, n_runs: {}"\
         .format(da_matrix.name, n_runs)
-    plt.title(title)
-    plt.legend()
+    if show_title:
+        plt.title(title)
+    plt.legend(loc='best')
     plt.show()
 
 
 def run_leave_one_out(meta_learners, da_matrix, n_runs=100, fig=None, 
-                      use_all=False):
+                      use_all=False, show_title=False):
     """
     Args: 
       meta_learners: list of S0A1MetaLearner objects
@@ -346,8 +349,9 @@ def run_leave_one_out(meta_learners, da_matrix, n_runs=100, fig=None,
     plt.ylabel('Probability of having found at least one good algo so far')
     title = "Learning curve on \nda-matrix: {}, n_runs: {}"\
         .format(da_matrix.name, n_runs)
-    plt.title(title)
-    plt.legend()
+    if show_title:
+        plt.title(title)
+    plt.legend(loc='best')
     plt.show()
 
     return fig
@@ -368,8 +372,10 @@ def get_meta_learner_marker(meta_learner_name):
         marker = '<'
     elif meta_learner_name == 'greedy':
         marker = 'o'
-    elif meta_learner_name == 'random':
+    elif meta_learner_name in {'random', 'random_search'}:
         marker = 's'
+    elif meta_learner_name == 'optimal':
+        marker = '*'
     else:
         marker = None
     return marker
@@ -403,7 +409,8 @@ def get_markevery(n_points, n_markers=10):
 
 
 def run_once_random(da_matrix, perc_valid=0.5, n_meta_learners=100, fig=None,
-                    show_legend=False, show_fig=False, leave_one_out=False):
+                    show_legend=False, show_fig=False, leave_one_out=False,
+                    show_title=False):
     if fig is None:
         fig = plt.figure()
     ax = plt.subplot(1, 1, 1)
@@ -483,9 +490,10 @@ def run_once_random(da_matrix, perc_valid=0.5, n_meta_learners=100, fig=None,
     plt.ylabel('Probability of having found at least one good algo so far')
     title = "Learning curve on \nda-matrix: {}"\
         .format(da_matrix.name)
-    plt.title(title)
+    if show_title:
+        plt.title(title)
     if show_legend:
-        plt.legend()
+        plt.legend(loc='best')
     if show_fig:
         plt.show()
 
@@ -493,7 +501,7 @@ def run_once_random(da_matrix, perc_valid=0.5, n_meta_learners=100, fig=None,
 
 
 def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
-                        with_error_bars=False):
+                        with_error_bars=False, show_title=False):
     """Run meta-training on and meta-validation by making a train/valid split.
 
     Args: 
@@ -509,7 +517,7 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
     else:
         ax = fig.axes[0]
 
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     
 
     n_datasets = len(da_matrix.perfs)
@@ -561,7 +569,7 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
                         label="{} - {:.4f}".format(meta_learner.name, alc),
                         transform=trans_offset,
                         marker=get_meta_learner_marker(meta_learner.name),
-                        markersize=5,
+                        markersize=10,
                         markevery=get_markevery(len(mean_perfs)),
                         alpha=0.5,
                         )
@@ -570,9 +578,9 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
                         mean_perfs, 
                         color=get_meta_learner_color(meta_learner.name),
                         label="{} - {:.4f}".format(meta_learner.name, alc),
-                        transform=trans_offset,
+                        # transform=trans_offset,
                         marker=get_meta_learner_marker(meta_learner.name),
-                        markersize=5,
+                        markersize=10,
                         markevery=get_markevery(len(mean_perfs)),
                         alpha=0.5,
                         )
@@ -585,14 +593,20 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
     plt.ylabel('Probability of having found at least one good algo so far')
     title = "Learning curve on \nda-matrix: {}"\
         .format(da_matrix.name)
-    plt.title(title)
-    plt.legend()
+    if show_title:
+        plt.title(title)
+    if da_matrix.name == 'OpenML-Alors':
+        plt.legend(loc='lower right')
+    else:
+        plt.legend(loc='best')
     plt.show()
 
     return fig
 
 
-def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5):
+def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5, 
+                              with_error_bars=False, fixed_ylim=False, 
+                              show_title=False):
     fig = plt.figure()
     ax = plt.subplot(1, 1, 1)
 
@@ -639,19 +653,31 @@ def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5):
 
         # Error bar for estimating the mean performance
         yerr = std_perfs / np.sqrt(n_valid)
-        
-        # Plotting learning curves with error bars
-        ax.errorbar(np.arange(len(mean_perfs)) + 1, 
-                    mean_perfs, 
-                    yerr=yerr,
-                    barsabove=True,
-                    capsize=2,
-                    label="{} - {:.4f}".format(da_matrix.name, alc),
-                    transform=trans_offset,
-                    marker=get_meta_learner_marker(meta_learner.name),
-                    markersize=5,
-                    markevery=get_markevery(len(mean_perfs)),
-                    )
+
+        if with_error_bars:
+            # Plotting learning curves with error bars
+            ax.errorbar(np.arange(len(mean_perfs)) + 1, 
+                        mean_perfs, 
+                        yerr=yerr,
+                        barsabove=True,
+                        capsize=2,
+                        label="{} - {:.4f}".format(da_matrix.name, alc),
+                        transform=trans_offset,
+                        marker=get_meta_learner_marker(meta_learner.name),
+                        markersize=10,
+                        markevery=get_markevery(len(mean_perfs)),
+                        alpha=0.5,
+                        )
+        else:
+            ax.plot(np.arange(len(mean_perfs)) + 1, 
+                        mean_perfs, 
+                        label="{} - {:.4f}".format(da_matrix.name, alc),
+                        # transform=trans_offset,
+                        marker=get_meta_learner_marker(meta_learner.name),
+                        markersize=10,
+                        markevery=get_markevery(len(mean_perfs)),
+                        alpha=0.5,
+                        )
 
         alcs.append(alc)
 
@@ -661,10 +687,13 @@ def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5):
         labels = [str(x) for x in ticks]
         plt.xticks(ticks=ticks, labels=labels)
     plt.ylabel('Probability of having found at least one good algo so far')
+    if fixed_ylim:
+        plt.ylim(0.45, 1.05)
     title = "Learning curve with \nmeta-learner: {}"\
         .format(meta_learner.name)
-    plt.title(title)
-    plt.legend()
+    if show_title:
+        plt.title(title)
+    plt.legend(loc='best')
     plt.show()
 
     return fig, alcs
@@ -677,7 +706,13 @@ def binarize(matrix, quantile=0.5):
 
 
 def save_fig(fig, name_expe=None, results_dir='../results',
-             filename='learning-curves.jpg'):
+             filename=None):
+    if filename is None:
+        if name_expe is None:
+            filename = 'learning-curves.jpg'
+        else:
+            filename = '{}-learning-curves.jpg'.format(name_expe)
+
     # Create directory for the experiment
     expe_dir = os.path.join(results_dir, str(name_expe))
     os.makedirs(expe_dir, exist_ok=True)
@@ -687,7 +722,12 @@ def save_fig(fig, name_expe=None, results_dir='../results',
 
 
 def save_perfs(perfs, name_expe=None, results_dir='../results', 
-               filename='perfs.npy'):
+               filename=None):
+    if filename is None:
+        if name_expe is None:
+            filename = 'perfs.npy'
+        else:
+            filename = '{}-perfs.npy'.format(name_expe)
     # Create directory for the experiment
     expe_dir = os.path.join(results_dir, str(name_expe))
     os.makedirs(expe_dir, exist_ok=True)
@@ -754,24 +794,24 @@ def plot_meta_learner_with_different_ranks(n_datasets=20000, n_algos=5):
 
         da_matrix = DAMatrix(
             perfs=bm,
-            name="Rank: {} (before binarizing) - Real rank: {}"\
+            name="Rank: {} - Real rank: {}"\
                 .format(rank, real_rank),
         )
         da_matrices.append(da_matrix)
     
     meta_learners = get_the_meta_learners()
     for meta_learner in meta_learners:
-        fig, _ = plot_multiple_da_matrices(meta_learner, da_matrices)
+        fig, _ = plot_multiple_da_matrices(meta_learner, da_matrices, fixed_ylim=True)
         name_expe = '{}-different-ranks'.format(meta_learner.name)
         save_fig(fig, name_expe=name_expe)
         for i, da_matrix in enumerate(da_matrices):
-            filename = "perfs-{}.npy".format(i)
+            filename = "perfs-{}.npy".format(i + 1)
             save_perfs(da_matrix.perfs, name_expe=name_expe, filename=filename)
 
 
 def plot_meta_learner_with_different_true_ranks(n_datasets=20000, n_algos=5):
     da_matrices = []
-    for rank in range(0, n_algos + 1):
+    for rank in range(1, n_algos + 1):
         matrix = generate_binary_matrix_with_rank(rank, n_datasets, n_algos)
 
         da_matrix = DAMatrix(
@@ -799,7 +839,7 @@ def plot_meta_learner_with_different_true_ranks(n_datasets=20000, n_algos=5):
         json.dump(alcss, f)
 
 
-def plot_alc_vs_rank():
+def plot_alc_vs_rank(show_title=False):
     filepath = '../results/alc-vs-rank.json'
     with open(filepath, 'r') as f:
         alcss = json.load(f)
@@ -816,7 +856,7 @@ def plot_alc_vs_rank():
 
         noise = im * epsilon
         
-        ax.plot(np.arange(len(alcs)) + noise, alcs + noise, 
+        ax.plot(np.arange(len(alcs)) + 1 + noise, alcs + noise, 
                 label=ml,
                 marker=get_meta_learner_marker(ml),
                 markersize=5,
@@ -826,14 +866,76 @@ def plot_alc_vs_rank():
     plt.xlabel("Rank of the DA matrix")
     plt.ylabel('Area under Learning Curve (ALC)')
     title = "ALC vs rank"
-    plt.title(title)
-    plt.legend()
+    if show_title:
+        plt.title(title)
+    plt.legend(loc='best')
     plt.show()
     name_expe = 'alc-vs-rank'
     save_fig(fig, name_expe=name_expe)
     return fig
 
+
+def plot_meta_learner_with_different_cardinal_clique(
+        n_datasets=20000, 
+        n_algos=5):
+    da_matrices = []
+    for card in range(1, n_algos + 1):
+        da_matrix = ComplementaryDAMatrix(cardinal_clique=card, 
+                        name="Clique cardinal {}".format(card))
+        da_matrices.append(da_matrix)
+
+    alcss = {}
     
+    meta_learners = get_the_meta_learners()
+    for im, meta_learner in enumerate(meta_learners):
+        fig, alcs = plot_multiple_da_matrices(meta_learner, da_matrices)
+        name_expe = '{}-different-cardinal-clique'.format(meta_learner.name)
+        save_fig(fig, name_expe=name_expe)
+        for i, da_matrix in enumerate(da_matrices):
+            filename = "perfs-cardinal-clique={}.npy".format(i + 1)
+            save_perfs(da_matrix.perfs, name_expe=name_expe, filename=filename)
+        
+        alcss[meta_learner.name] = alcs
+
+    filepath = '../results/alc-vs-cardinal-clique.json'
+    with open(filepath, 'w') as f:
+        json.dump(alcss, f)
+
+
+def plot_alc_vs_cardinal_clique(with_noise=False, show_title=False):
+    filepath = '../results/alc-vs-cardinal-clique.json'
+    with open(filepath, 'r') as f:
+        alcss = json.load(f)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    epsilon = 1e-2
+
+    for im, ml in enumerate(alcss):
+        alcs = np.array(alcss[ml])
+
+        noise = im * epsilon if with_noise else 0
+        
+        ax.plot(np.arange(len(alcs)) + 1 + noise, alcs + noise, 
+                label=ml,
+                marker=get_meta_learner_marker(ml),
+                markersize=5,
+                markevery=get_markevery(len(alcs)),
+        )
+
+    plt.xlabel("Cardinal of the minimal clique")
+    plt.ylabel('Area under Learning Curve (ALC)')
+    title = "ALC vs Clique cardinal"
+    if show_title:
+        plt.title(title)
+    plt.legend(loc='best')
+    plt.show()
+    name_expe = 'alc-vs-cardinal-clique'
+    save_fig(fig, name_expe=name_expe)
+    return fig
     
 
 

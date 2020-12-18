@@ -210,11 +210,45 @@ class Case3dDAMatrix(DAMatrix):
             return entry
 
 
-def ComplementaryDAMatrix(DAMatrix):
+class ComplementaryDAMatrix(DAMatrix):
 
-    def __init__(self, n_datasets=10000, name='ComplementaryDAMatrix'):
-        # TODO
-        pass
+    def __init__(self, cardinal_clique=2,
+                 n_datasets=20000, 
+                 n_algos=5,
+                 name='ComplementaryDAMatrix',
+                 shuffle_column=False,
+                 ):
+        if cardinal_clique > n_algos:
+            raise ValueError("The clique cardinal {} ".format(cardinal_clique) +
+                             "should be less than n_algos={}.".format(n_algos))
+        
+        clique_indices = np.random.randint(cardinal_clique, size=n_datasets)
+        
+        clique_cols = np.zeros(shape=(n_datasets, cardinal_clique)).astype(int)
+        for i, idx in enumerate(clique_indices):
+            clique_cols[i][idx] = 1
+
+        if n_algos > cardinal_clique:
+            other_cols = np.random.rand(n_datasets, n_algos - cardinal_clique)
+            other_cols = (other_cols < 0.5).astype(int)
+            all_cols = np.concatenate([clique_cols, other_cols], axis=1)
+        else:
+            all_cols = clique_cols
+
+        if shuffle_column:
+            permutation = np.random.permutation(n_algos)
+            idx = np.empty_like(permutation)
+            idx[permutation] = np.arange(len(permutation))
+            all_cols[:] = all_cols[:, idx]
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
+        
+        DAMatrix.__init__(self, 
+            perfs=all_cols,
+            datasets=datasets, 
+            algos=algos, 
+            name=name, 
+            )
 
 
 
