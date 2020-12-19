@@ -11,7 +11,7 @@ import numpy as np
 import os
 
 from mlt.data import DAMatrix
-from mlt.data import ComplementaryDAMatrix
+from mlt.data import CopulaCliqueDAMatrix
 
 
 class S0A1MetaLearner(object):
@@ -43,14 +43,18 @@ class RandomSearchMetaLearner(S0A1MetaLearner):
     def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None):
         """Nothing to do for random search"""
         self.name = 'random_search'
-        pass
+        self.max_print = 3
+        self.n_print = 0
 
     def fit(self, da_matrix: DAMatrix, i_dataset: int):
         n_algos = len(da_matrix.algos)
 
         # Random order of algos for random search
         indices_algo_to_reveal = np.random.permutation(n_algos)
-        print("Random search indices_algo_to_reveal", indices_algo_to_reveal)
+        if self.n_print < self.max_print:
+            print("Random search indices_algo_to_reveal", 
+                    indices_algo_to_reveal)
+            self.n_print += 1
         for i_algo in indices_algo_to_reveal:
             perf = da_matrix.eval(i_dataset, i_algo)
             self.history.append((i_dataset, i_algo, perf))
@@ -86,7 +90,7 @@ class MeanMetaLearner(S0A1MetaLearner):
                 filtered_da_matrix.append(row)
         filtered_da_matrix = np.array(filtered_da_matrix)
         self.theta_estimation = np.mean(filtered_da_matrix, axis=0)
-        self.indices_algo_to_reveal = np.argsort(self.theta_estimation)[::-1]
+        self.indices_algo_to_reveal = np.array(np.argsort(self.theta_estimation)[::-1])
         print("Mean indices_algo_to_reveal", self.indices_algo_to_reveal)
 
     def fit(self, da_matrix: DAMatrix, i_dataset: int):
@@ -138,7 +142,7 @@ class GreedyMetaLearner(S0A1MetaLearner):
             indices_algo_to_reveal += indices_remaining
             assert len(indices_algo_to_reveal) == n_algos
         
-        self.indices_algo_to_reveal = indices_algo_to_reveal
+        self.indices_algo_to_reveal = np.array(indices_algo_to_reveal)
 
         print("Greedy indices_algo_to_reveal", self.indices_algo_to_reveal)
 
@@ -168,7 +172,7 @@ class OptimalMetaLearner(S0A1MetaLearner):
             if alc > max_alc:
                 self.indices_algo_to_reveal = perm
                 max_alc = alc
-
+        self.indices_algo_to_reveal = np.array(self.indices_algo_to_reveal)
         print("Optimal indices_algo_to_reveal", self.indices_algo_to_reveal)
 
     def fit(self, da_matrix: DAMatrix, i_dataset: int):
@@ -408,6 +412,13 @@ def get_markevery(n_points, n_markers=10):
         return n_points // n_markers
 
 
+def get_markersize(meta_learner_name):
+    if meta_learner_name == 'optimal':
+        return 5
+    else:
+        return 10
+
+
 def run_once_random(da_matrix, perc_valid=0.5, n_meta_learners=100, fig=None,
                     show_legend=False, show_fig=False, leave_one_out=False,
                     show_title=False):
@@ -482,7 +493,7 @@ def run_once_random(da_matrix, perc_valid=0.5, n_meta_learners=100, fig=None,
                     label="{} - {:.4f}".format(meta_learner.name, alc),
                     # transform=trans_offset,
                     marker=get_meta_learner_marker(meta_learner.name),
-                    markersize=5,
+                    markersize=get_markersize(meta_learner.name),
                     markevery=get_markevery(n_algos),
                     )
     
@@ -501,7 +512,8 @@ def run_once_random(da_matrix, perc_valid=0.5, n_meta_learners=100, fig=None,
 
 
 def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
-                        with_error_bars=False, show_title=False):
+                        with_error_bars=False, show_title=False, ylim=None,
+                        show_legend=False, figsize=(5, 4), show_alc=False):
     """Run meta-training on and meta-validation by making a train/valid split.
 
     Args: 
@@ -512,12 +524,12 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
       fig: plt.figure 
     """
     if fig is None:
-        fig = plt.figure()
+        fig = plt.figure(figsize=figsize)
         ax = plt.subplot(1, 1, 1)
     else:
         ax = fig.axes[0]
 
-    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     
 
     n_datasets = len(da_matrix.perfs)
@@ -557,6 +569,11 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
 
         # Error bar for estimating the mean performance
         yerr = std_perfs / np.sqrt(n_valid)
+
+        if show_alc:
+            label = "{} - {:.4f}".format(meta_learner.name, alc)
+        else:
+            label = meta_learner.name
         
         # Plotting learning curves with error bars
         if with_error_bars:
@@ -566,10 +583,10 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
                         color=get_meta_learner_color(meta_learner.name),
                         barsabove=True,
                         capsize=2,
-                        label="{} - {:.4f}".format(meta_learner.name, alc),
+                        label=label,
                         transform=trans_offset,
                         marker=get_meta_learner_marker(meta_learner.name),
-                        markersize=10,
+                        markersize=get_markersize(meta_learner.name),
                         markevery=get_markevery(len(mean_perfs)),
                         alpha=0.5,
                         )
@@ -577,10 +594,10 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
             ax.plot(np.arange(len(mean_perfs)) + 1, 
                         mean_perfs, 
                         color=get_meta_learner_color(meta_learner.name),
-                        label="{} - {:.4f}".format(meta_learner.name, alc),
+                        label=label,
                         # transform=trans_offset,
                         marker=get_meta_learner_marker(meta_learner.name),
-                        markersize=10,
+                        markersize=get_markersize(meta_learner.name),
                         markevery=get_markevery(len(mean_perfs)),
                         alpha=0.5,
                         )
@@ -590,15 +607,19 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
         ticks = (np.arange(n_algos) + 1).astype(int)
         labels = [str(x) for x in ticks]
         plt.xticks(ticks=ticks, labels=labels)
-    plt.ylabel('Probability of having found at least one good algo so far')
+    plt.ylabel('proba at least one algo succeeded')
     title = "Learning curve on \nda-matrix: {}"\
         .format(da_matrix.name)
     if show_title:
         plt.title(title)
-    if da_matrix.name == 'OpenML-Alors':
-        plt.legend(loc='lower right')
-    else:
-        plt.legend(loc='best')
+    if ylim:
+        plt.ylim(*ylim)
+    if show_legend:
+        if da_matrix.name == 'OpenML-Alors':
+            plt.legend(loc='lower right')
+            plt.xscale('log')
+        else:
+            plt.legend(loc='best')
     plt.show()
 
     return fig
@@ -879,10 +900,11 @@ def plot_meta_learner_with_different_cardinal_clique(
         n_datasets=20000, 
         n_algos=5):
     da_matrices = []
-    for card in range(1, n_algos + 1):
-        da_matrix = ComplementaryDAMatrix(cardinal_clique=card, 
+    for card in range(2, n_algos + 1):
+        da_matrix = CopulaCliqueDAMatrix(cardinal_clique=card, 
                         name="Clique cardinal {}".format(card))
         da_matrices.append(da_matrix)
+        print("marginal:", np.mean(da_matrix.perfs, axis=0))
 
     alcss = {}
     
@@ -919,7 +941,7 @@ def plot_alc_vs_cardinal_clique(with_noise=False, show_title=False):
 
         noise = im * epsilon if with_noise else 0
         
-        ax.plot(np.arange(len(alcs)) + 1 + noise, alcs + noise, 
+        ax.plot(np.arange(len(alcs)) + 2 + noise, alcs + noise, 
                 label=ml,
                 marker=get_meta_learner_marker(ml),
                 markersize=5,

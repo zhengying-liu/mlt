@@ -21,10 +21,15 @@ from mlt.meta_learner import plot_meta_learner_with_different_cardinal_clique
 from mlt.meta_learner import plot_alc_vs_cardinal_clique
 from mlt.data import DAMatrix, NFLDAMatrix, Case2DAMatrix, Case3dDAMatrix
 from mlt.data import BinarizedMultivariateGaussianDAMatrix
+from mlt.data import ComplementaryDAMatrix, CopulaCliqueDAMatrix
 
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import pandas as pd
+
+from scipy.optimize import minimize, LinearConstraint
+from cvxopt import matrix, solvers
 
 
 def test_run_and_plot_learning_curve():
@@ -146,14 +151,16 @@ def test_run_meta_validation():
 
 def run_expe(da_matrix, meta_learners, 
              name_expe=None,
-             results_dir='../results', with_once_random=False):
+             results_dir='../results', with_once_random=False, ylim=None, 
+             show_legend=False):
     """Use run_meta_validation to run experiment."""
     if with_once_random:
         fig = run_once_random(da_matrix)
     else:
         fig = None
 
-    fig = run_meta_validation(meta_learners, da_matrix, fig=fig)
+    fig = run_meta_validation(meta_learners, da_matrix, fig=fig, ylim=ylim, 
+                              show_legend=show_legend)
 
     # Create directory for the experiment
     expe_dir = os.path.join(results_dir, str(name_expe))
@@ -182,17 +189,18 @@ def run_3a():
     name_expe = '3a-repeated-columns'
     da_matrix = DAMatrix(perfs=perfs, name=name_expe)
     meta_learners = get_the_meta_learners()
-    run_expe(da_matrix, meta_learners, name_expe=name_expe)
+    run_expe(da_matrix, meta_learners, name_expe=name_expe, ylim=(0.45, 1.05))
 
 
 def run_3b():
     n_datasets = 20000
-    n_algos = 2
-    X1 = (np.random.rand(n_datasets, 1) < 0.5).astype(int)
-    X2 = 1 - X1
-    perfs = np.concatenate([X1, X2], axis=1)
+    n_algos = 5
+    # X1 = (np.random.rand(n_datasets, 1) < 0.5).astype(int)
+    # X2 = 1 - X1
+    # perfs = np.concatenate([X1, X2], axis=1)
     name_expe = '3b-complementary-2-algos'
-    da_matrix = DAMatrix(perfs=perfs, name=name_expe)
+    # da_matrix = DAMatrix(perfs=perfs, name=name_expe)
+    da_matrix = ComplementaryDAMatrix()
     meta_learners = get_the_meta_learners()
     run_expe(da_matrix, meta_learners, name_expe=name_expe)
 
@@ -205,7 +213,290 @@ def run_3d():
     run_expe(da_matrix, meta_learners, name_expe=name_expe)
 
 
+def get_multivariate_bernoulli_3f(epsilon=1e-1, n_datasets=20000, 
+                                  use_cvxopt=False):
+    """ 
+        ABCD
+    x0: 0000
+    x1: 0001
+    x2: 0010
+    x3: 0011
+    x4: 0100
+    x5: 0101
+    x6: 0110
+    x7: 0111
+    x8: 1000
+    x9: 1001
+    x10: 1010
+    x11: 1011
+    x12: 1100
+    x13: 1101
+    x14: 1110
+    x15: 1111
+    """
+    n_algos = 4
+    e = epsilon
+
+    B = [
+        0.5 - 2 * e,    # P(A=0)
+        0.5 - e,        # P(B=0)
+        0.5 + e,        # P(C=0)
+        0.5 + 2 * e,    # P(D=0)
+        0,              # P(B=0|A=0)        = 0.5 + 2e
+        0,              # P(C=0|A=0,B=0)    = 0
+        0,              # P(D=0|A=0)        = 0.5 + e
+        0,              # P(C=0|A=0)        = 0.5 + 2e
+        0,              # P(C=0|A=0,D=0)    = 2e
+        1,              # P(all)            = 1
+    ]
+    
+    A = np.zeros(shape=(len(B), 2 ** n_algos))
+    indicess = [[] for _ in range(n_algos)]
+
+    # A=0
+    indices_A0 = []
+    for i in range(2):
+        for j in range(2):
+            for k in range(2):
+                s = "0{}{}{}".format(i, j, k)
+                idx = int(s, base=2)
+                indices_A0.append(idx)
+    # B=0
+    indices_B0 = []
+    for i in range(2):
+        for j in range(2):
+            for k in range(2):
+                s = "{}0{}{}".format(i, j, k)
+                idx = int(s, base=2)
+                indices_B0.append(idx)
+    # C=0
+    indices_C0 = []
+    for i in range(2):
+        for j in range(2):
+            for k in range(2):
+                s = "{}{}0{}".format(i, j, k)
+                idx = int(s, base=2)
+                indices_C0.append(idx)
+    # D=0
+    indices_D0 = []
+    for i in range(2):
+        for j in range(2):
+            for k in range(2):
+                s = "{}{}{}0".format(i, j, k)
+                idx = int(s, base=2)
+                indices_D0.append(idx)
+    # A=0,B=0
+    indices_A0B0 = []
+    for i in range(2):
+        for j in range(2):
+            s = "00{}{}".format(i, j)
+            idx = int(s, base=2)
+            indices_A0B0.append(idx)
+    # A=0,C=0
+    indices_A0C0 = []
+    for i in range(2):
+        for j in range(2):
+            s = "0{}0{}".format(i, j)
+            idx = int(s, base=2)
+            indices_A0C0.append(idx)
+    # A=0,D=0
+    indices_A0D0 = []
+    for i in range(2):
+        for j in range(2):
+            s = "0{}{}0".format(i, j)
+            idx = int(s, base=2)
+            indices_A0D0.append(idx)
+    # A=0,B=0,C=0
+    indices_A0B0C0 = []
+    for i in range(2):
+        s = "000{}".format(i)
+        idx = int(s, base=2)
+        indices_A0B0C0.append(idx)
+    # A=0,C=0,D=0
+    indices_A0C0D0 = []
+    for i in range(2):
+        s = "0{}00".format(i)
+        idx = int(s, base=2)
+        indices_A0C0D0.append(idx)
+    
+    for idx in indices_A0:
+        A[0, idx] += 1      # P(A)
+    for idx in indices_B0:
+        A[1, idx] += 1      # P(B)
+    for idx in indices_C0:
+        A[2, idx] += 1      # P(C)
+    for idx in indices_D0:
+        A[3, idx] += 1      # P(D)
+
+    factor_importance = 2
+    fi = factor_importance
+    
+    # P(B=0|A=0) = 0.5 + 2e
+    for idx in indices_A0B0:
+        A[4, idx] += 1
+    for idx in indices_A0:
+        A[4, idx] += - (0.5 + 2 * e)
+    A[4] *= fi ** 2
+    
+    # P(C=0|A=0,B=0) = 0
+    for idx in indices_A0B0C0:
+        A[5, idx] += 1
+    A[5] *= fi
+
+    # P(D=0|A=0) = 0.5 + e
+    for idx in indices_A0D0:
+        A[6, idx] += 1
+    for idx in indices_A0:
+        A[6, idx] += - (0.5 + e)
+    A[6] *= fi
+
+    # P(C=0|A=0) = 0.5 + 2e
+    for idx in indices_A0C0:
+        A[7, idx] += 1
+    for idx in indices_A0:
+        A[7, idx] += - (0.5 + 2 * e)
+    A[7] *= fi ** 2
+
+    # P(C=0|A=0,D=0) = 2e
+    for idx in indices_A0C0D0:
+        A[8, idx] += 1
+    for idx in indices_A0D0:
+        A[8, idx] += - 2 * e
+    A[8] *= fi
+
+    # P(all) = 1
+    for idx in range(2 ** n_algos):
+        A[9, idx] += 1
+
+    if not use_cvxopt:
+        # # Use optimization tool to solve the equation
+        def f(x):
+            y = np.dot(A, x) - B
+            return np.dot(y, y)
+
+        cons = [
+            {'type': 'eq', 'fun': lambda x: x.sum() - 1},
+            LinearConstraint(
+                A=np.eye(2 ** n_algos), 
+                lb=np.zeros(2 ** n_algos),
+                ub=np.ones(2 ** n_algos)
+            ),
+        ]
+        res = minimize(f, np.zeros(2 ** n_algos), method='SLSQP', constraints=cons, 
+                                options={'disp': False})
+
+        x = np.array(res['x'])
+
+        
+
+    else:
+        # Use CVXOPT
+        print(A)
+        print(A.shape)
+        print("np.linalg.matrix_rank(A)", np.linalg.matrix_rank(A))
+        
+        P = matrix(A.T.dot(A))
+        q = matrix(-A.T.dot(B))
+        G = np.concatenate([np.eye(16), -np.eye(16)])
+        G = matrix(G)
+        h = [1.0] * 16 + [0.0] * 16
+        h = matrix(h)
+        # AA = np.array([1.0] * 16).reshape(1, 16)
+        # AA = matrix(AA)
+        # b = matrix(1.0)
+        # sol = solvers.qp(P, q, G, h, AA, b)
+        sol = solvers.qp(P, q, G, h)
+        x = np.array(sol['x']).reshape(16)
+
+    x = [e if e >=0 else 0 for e in x]
+    x = np.array(x)
+    x = x / x.sum()
+
+    residu = A.dot(x) - B
+    print("Ax:", A.dot(x))
+    print("B:", B)
+    print("x.sum()", x.sum())
+    print(x >= 0)
+    print(x <= 1)
+    print("residu.shape:", residu.shape)
+    print("residu:", residu)
+    print("residu norm:", residu.dot(residu))
+    print("x:", x)
+
+    perfs = []
+    for i in range(n_datasets):
+        idx = np.random.choice(2 ** n_algos, p=x)
+        bits = []
+        for _ in range(n_algos):
+            bits.append(idx % 2)
+            idx //= 2
+        bits = bits[::-1]
+        perfs.append(bits)
+    perfs = np.array(perfs)
+
+    name = '3f'
+    da_matrix = DAMatrix(perfs=perfs, name=name)
+
+    PA0 = sum([x[i] for i in indices_A0])
+    PA0C0 = sum([x[i] for i in indices_A0C0])
+    print("Real P(C=0|A=0)={}".format(PA0C0 / PA0))
+    PA0 = sum([x[i] for i in indices_A0])
+    PA0D0 = sum([x[i] for i in indices_A0D0])
+    print("Real P(D=0|A=0)={}".format(PA0D0 / PA0))
+
+    return da_matrix
+
+
+def test_get_multivariate_bernoulli_3f():
+    da_matrix = get_multivariate_bernoulli_3f()
+    perfs = da_matrix.perfs
+    df = pd.DataFrame(perfs)
+
+    df_A0 = df[df[0] == 0]
+    df_B0 = df[df[1] == 0]
+    df_C0 = df[df[2] == 0]
+    df_D0 = df[df[3] == 0]
+
+    PA0 = len(df_A0) / len(df)
+    print("P(A=0)={}".format(PA0))
+    PB0 = len(df_B0) / len(df)
+    print("P(B=0)={}".format(PB0))
+    PC0 = len(df_C0) / len(df)
+    print("P(C=0)={}".format(PC0))
+    PD0 = len(df_D0) / len(df)
+    print("P(D=0)={}".format(PD0))
+
+    df_A0B0 = df_A0[df_A0[1] == 0]
+    df_A0C0 = df_A0[df_A0[2] == 0]
+    df_A0D0 = df_A0[df_A0[3] == 0]
+    PA0B0 = len(df_A0B0) / len(df_A0)
+    print("P(B=0|A=0)={}".format(PA0B0))
+    PA0C0 = len(df_A0C0) / len(df_A0)
+    print("P(C=0|A=0)={}".format(PA0C0))
+    PA0D0 = len(df_A0D0) / len(df_A0)
+    print("P(D=0|A=0)={}".format(PA0D0))
+
+    df_A0B0C0 = df_A0B0[df_A0B0[2] == 0]
+    df_A0D0C0 = df_A0D0[df_A0D0[2] == 0]
+    df_A0D0B0 = df_A0D0[df_A0D0[1] == 0]
+    PA0B0C0 = len(df_A0B0C0) / len(df_A0B0)
+    print("P(C=0|A=0,B=0)={}".format(PA0B0C0))
+    PA0D0C0 = len(df_A0D0C0) / len(df_A0B0)
+    print("P(C=0|A=0,D=0)={}".format(PA0D0C0))
+    PA0D0B0 = len(df_A0D0B0) / len(df_A0B0)
+    print("P(B=0|A=0,D=0)={}".format(PA0D0B0))
+    
+    
+
+
 def run_3f():
+    da_matrix = get_multivariate_bernoulli_3f()
+    name_expe = '3f'
+    meta_learners = get_the_meta_learners()
+    run_expe(da_matrix, meta_learners, name_expe=name_expe)
+
+
+def run_3f_old():
     n_datasets = 20000
     name_expe = '3f'
     epsilon = 1e-1
@@ -232,12 +523,12 @@ def run_3g():
     n_datasets = 20000
     name_expe = '3g'
     epsilon = 1e-1
-    X1 = (np.random.rand(n_datasets, 1) < 0.5 - epsilon).astype(int)
+    X1 = (np.random.rand(n_datasets, 1) < 0.5 + epsilon).astype(int)
     X2 = 1 - X1
-    perfs = np.concatenate([X1, X2], axis=1)
+    perfs = np.concatenate([X1, X1, X2, X2], axis=1)
     da_matrix = DAMatrix(perfs=perfs, name=name_expe)
     meta_learners = get_the_meta_learners()
-    run_expe(da_matrix, meta_learners, name_expe=name_expe)
+    run_expe(da_matrix, meta_learners, name_expe=name_expe, show_legend=False)
 
 
 def test_binarize():
@@ -328,11 +619,12 @@ if __name__ == '__main__':
     # test_run_meta_validation()
     # test_binarize()
     # test_generate_binary_matrix_with_rank()
+    # test_get_multivariate_bernoulli_3f()
 
     # run_3a()
     # run_3b()
     # run_3d()
-    # run_3f()
+    run_3f()
     # run_3g()
     # run_nfl()
     
@@ -344,6 +636,8 @@ if __name__ == '__main__':
 
     # run_leave_one_out_on_real_datasets()
 
-    plot_meta_learner_with_different_cardinal_clique()
+    # plot_meta_learner_with_different_cardinal_clique()
 
     # plot_alc_vs_cardinal_clique()
+
+    # get_multivariate_bernoulli_3f()

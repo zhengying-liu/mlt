@@ -251,6 +251,55 @@ class ComplementaryDAMatrix(DAMatrix):
             )
 
 
+class CopulaCliqueDAMatrix(DAMatrix):
+    """Clique: a list one column is equal to 1. All marginal dist are B(0.5).
+    """
+
+    def __init__(self, cardinal_clique=2,
+                 n_datasets=20000, 
+                 n_algos=5,
+                 name='CopulaCliqueDAMatrix',
+                 shuffle_column=False,
+                 ):
+        if cardinal_clique > n_algos:
+            raise ValueError("The clique cardinal {} ".format(cardinal_clique) +
+                             "should be less than n_algos={}.".format(n_algos))
+        
+        clique_indices = np.random.randint(cardinal_clique, size=n_datasets)
+        
+        clique_cols = np.zeros(shape=(n_datasets, cardinal_clique)).astype(int)
+        for i, idx in enumerate(clique_indices):
+            clique_cols[i][idx] = 1
+            for j in range(cardinal_clique):
+                if j != idx:
+                    target_theta = 0.5
+                    # proba to make the marginal uniform, i.e. B(0.5)
+                    proba = (target_theta * cardinal_clique - 1) / (cardinal_clique - 1)
+                    clique_cols[i][j] = int(np.random.rand() < proba)
+
+        if n_algos > cardinal_clique:
+            other_cols = np.random.rand(n_datasets, n_algos - cardinal_clique)
+            other_cols = (other_cols < 0.5).astype(int)
+            all_cols = np.concatenate([clique_cols, other_cols], axis=1)
+        else:
+            all_cols = clique_cols
+
+        if shuffle_column:
+            permutation = np.random.permutation(n_algos)
+            idx = np.empty_like(permutation)
+            idx[permutation] = np.arange(len(permutation))
+            all_cols[:] = all_cols[:, idx]
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
+        
+        DAMatrix.__init__(self, 
+            perfs=all_cols,
+            datasets=datasets, 
+            algos=algos, 
+            name=name, 
+            )
+
+
 
 class BinarizedMultivariateGaussianDAMatrix(DAMatrix):
 
