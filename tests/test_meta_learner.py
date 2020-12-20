@@ -152,7 +152,7 @@ def test_run_meta_validation():
 def run_expe(da_matrix, meta_learners, 
              name_expe=None,
              results_dir='../results', with_once_random=False, ylim=None, 
-             show_legend=False):
+             show_legend=True):
     """Use run_meta_validation to run experiment."""
     if with_once_random:
         fig = run_once_random(da_matrix)
@@ -183,7 +183,7 @@ def run_nfl():
 
 def run_3a():
     n_datasets = 20000
-    n_algos = 5
+    n_algos = 4
     col = (np.random.rand(n_datasets, 1) < 0.5).astype(int)
     perfs = np.concatenate([col] * n_algos, axis=1)
     name_expe = '3a-repeated-columns'
@@ -195,12 +195,12 @@ def run_3a():
 def run_3b():
     n_datasets = 20000
     n_algos = 5
-    # X1 = (np.random.rand(n_datasets, 1) < 0.5).astype(int)
-    # X2 = 1 - X1
-    # perfs = np.concatenate([X1, X2], axis=1)
+    X1 = (np.random.rand(n_datasets, 1) < 0.5).astype(int)
+    X2 = 1 - X1
+    perfs = np.concatenate([X1, X2, X1, X2], axis=1)
     name_expe = '3b-complementary-2-algos'
-    # da_matrix = DAMatrix(perfs=perfs, name=name_expe)
-    da_matrix = ComplementaryDAMatrix()
+    da_matrix = DAMatrix(perfs=perfs, name=name_expe)
+    # da_matrix = ComplementaryDAMatrix()
     meta_learners = get_the_meta_learners()
     run_expe(da_matrix, meta_learners, name_expe=name_expe)
 
@@ -485,14 +485,22 @@ def test_get_multivariate_bernoulli_3f():
     print("P(C=0|A=0,D=0)={}".format(PA0D0C0))
     PA0D0B0 = len(df_A0D0B0) / len(df_A0B0)
     print("P(B=0|A=0,D=0)={}".format(PA0D0B0))
-    
-    
 
+
+def get_da_matrix_3f():
+    fpath = '../results/da_matrix_4f.txt'
+    perfs = np.loadtxt(fpath)
+    da_matrix = DAMatrix(perfs=perfs)
+    return da_matrix
+    
 
 def run_3f():
-    da_matrix = get_multivariate_bernoulli_3f()
+    # da_matrix = get_multivariate_bernoulli_3f()
+    da_matrix = get_da_matrix_3f()
     name_expe = '3f'
     meta_learners = get_the_meta_learners()
+    print(da_matrix.perfs.shape)
+    print(da_matrix.perfs.mean(axis=0))
     run_expe(da_matrix, meta_learners, name_expe=name_expe)
 
 
