@@ -248,10 +248,11 @@ def get_multivariate_bernoulli_3f(epsilon=1e-1, n_datasets=20000,
         0.5 + e,        # P(C=0)
         0.5 + 2 * e,    # P(D=0)
         0,              # P(B=0|A=0)        = 0.5 + 2e
-        0,              # P(C=0|A=0,B=0)    = 0
-        0,              # P(D=0|A=0)        = 0.5 + e
         0,              # P(C=0|A=0)        = 0.5 + 2e
-        0,              # P(C=0|A=0,D=0)    = 2e
+        0,              # P(D=0|A=0)        = 0.5 + e
+        0,              # P(C=0|A=0,B=0)    = 0
+        0,              # P(B=0|A=0,D=0)    = 0.5
+        0,              # P(C=0|A=0,D=0)    = 0.5
         1,              # P(all)            = 1
     ]
     
@@ -323,6 +324,12 @@ def get_multivariate_bernoulli_3f(epsilon=1e-1, n_datasets=20000,
         s = "0{}00".format(i)
         idx = int(s, base=2)
         indices_A0C0D0.append(idx)
+    # A=0,B=0,D=0
+    indices_A0B0D0 = []
+    for i in range(2):
+        s = "00{}0".format(i)
+        idx = int(s, base=2)
+        indices_A0B0D0.append(idx)
     
     for idx in indices_A0:
         A[0, idx] += 1      # P(A)
@@ -333,7 +340,7 @@ def get_multivariate_bernoulli_3f(epsilon=1e-1, n_datasets=20000,
     for idx in indices_D0:
         A[3, idx] += 1      # P(D)
 
-    factor_importance = 2
+    factor_importance = 1
     fi = factor_importance
     
     # P(B=0|A=0) = 0.5 + 2e
@@ -342,36 +349,46 @@ def get_multivariate_bernoulli_3f(epsilon=1e-1, n_datasets=20000,
     for idx in indices_A0:
         A[4, idx] += - (0.5 + 2 * e)
     A[4] *= fi ** 2
-    
-    # P(C=0|A=0,B=0) = 0
-    for idx in indices_A0B0C0:
-        A[5, idx] += 1
-    A[5] *= fi
 
+    # P(C=0|A=0) = 0.5 + 2e
+    for idx in indices_A0C0:
+        A[5, idx] += 1
+    for idx in indices_A0:
+        A[5, idx] += - (0.5 + 2 * e)
+    A[5] *= fi ** 2
+
+    # We want Greedy to choose D at step 2
     # P(D=0|A=0) = 0.5 + e
     for idx in indices_A0D0:
         A[6, idx] += 1
     for idx in indices_A0:
-        A[6, idx] += - (0.5 + e)
+        # A[6, idx] += - (0.5 + e)
+        A[6, idx] += - 0.5
     A[6] *= fi
 
-    # P(C=0|A=0) = 0.5 + 2e
-    for idx in indices_A0C0:
+    # We want Mean to be perfect at step 3
+    # P(C=0|A=0,B=0) = 0
+    for idx in indices_A0B0C0:
         A[7, idx] += 1
-    for idx in indices_A0:
-        A[7, idx] += - (0.5 + 2 * e)
-    A[7] *= fi ** 2
+    A[7] *= fi
 
-    # P(C=0|A=0,D=0) = 2e
+    # We wang Greedy to be bad at step 3
+    # P(C=0|A=0,D=0) = 0.5
     for idx in indices_A0C0D0:
         A[8, idx] += 1
     for idx in indices_A0D0:
-        A[8, idx] += - 2 * e
+        A[8, idx] += - 0.5
     A[8] *= fi
+    # P(B=0|A=0,D=0) = 0.5
+    for idx in indices_A0B0D0:
+        A[9, idx] += 1
+    for idx in indices_A0D0:
+        A[9, idx] += - 0.5
+    A[9] *= fi
 
     # P(all) = 1
     for idx in range(2 ** n_algos):
-        A[9, idx] += 1
+        A[10, idx] += 1
 
     if not use_cvxopt:
         # # Use optimization tool to solve the equation
@@ -391,8 +408,6 @@ def get_multivariate_bernoulli_3f(epsilon=1e-1, n_datasets=20000,
                                 options={'disp': False})
 
         x = np.array(res['x'])
-
-        
 
     else:
         # Use CVXOPT
@@ -491,6 +506,9 @@ def test_get_multivariate_bernoulli_3f():
     PA0D0B0 = len(df_A0D0B0) / len(df_A0B0)
     print("P(B=0|A=0,D=0)={}".format(PA0D0B0))
 
+    print("P(D=0|A=0) < P(B=0|A=0):", PA0D0 < PA0B0)
+    print("P(D=0|A=0) < P(C=0|A=0):", PA0D0 < PA0C0)
+
 
 def get_da_matrix_3f():
     fpath = '../results/da_matrix_4f.txt'
@@ -500,8 +518,8 @@ def get_da_matrix_3f():
     
 
 def run_3f():
-    # da_matrix = get_multivariate_bernoulli_3f()
-    da_matrix = get_da_matrix_3f()
+    da_matrix = get_multivariate_bernoulli_3f()
+    # da_matrix = get_da_matrix_3f()
     name_expe = '3f'
     meta_learners = get_the_meta_learners()
     print(da_matrix.perfs.shape)
@@ -646,7 +664,7 @@ if __name__ == '__main__':
     # run_3a()
     # run_3b()
     # run_3d()
-    # run_3f()
+    run_3f()
     # run_3g()
     # run_nfl()
     
@@ -660,6 +678,6 @@ if __name__ == '__main__':
 
     # plot_meta_learner_with_different_cardinal_clique()
 
-    plot_alc_vs_cardinal_clique()
+    # plot_alc_vs_cardinal_clique()
 
     # get_multivariate_bernoulli_3f()
