@@ -42,7 +42,7 @@ class RandomSearchMetaLearner(S0A1MetaLearner):
 
     def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None):
         """Nothing to do for random search"""
-        self.name = 'random_search'
+        self.name = 'random'
         self.max_print = 3
         self.n_print = 0
 
@@ -153,6 +153,80 @@ class GreedyMetaLearner(S0A1MetaLearner):
             self.history.append((i_dataset, i_algo, perf))
 
 
+class GreedyPlusMetaLearner(S0A1MetaLearner):
+
+    def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None):
+        self.name = 'greedy+'
+
+        n_algos = len(da_matrix.algos)
+
+        # Exlude the indices for validation
+        excluded_indices = set(excluded_indices)
+        filtered_da_matrix = []
+        for i, row in enumerate(da_matrix.perfs):
+            if not i in excluded_indices:
+                filtered_da_matrix.append(row)
+        filtered_da_matrix = np.array(filtered_da_matrix)
+
+        indices_algo_to_reveal = []
+        # Try all algorithms in the first step and compare LC of the second idx
+        max_alc = 0
+        mean_remaining = np.mean(filtered_da_matrix, axis=0)
+        for i1 in range(n_algos):
+            cond_prob = get_conditional_prob(filtered_da_matrix, cond_cols=[i1])
+            i2 = np.argmax(cond_prob)
+            alc = mean_remaining[i1] + cond_prob[i2]
+            # print("i1, i2, mean_remaining[i1], cond_prob[i2], alc", i1, i2, mean_remaining[i1], cond_prob[i2], alc)
+            if alc > max_alc:
+                indices_algo_to_reveal = [i1, i2]
+                max_alc = alc
+        
+        i1, i2 = indices_algo_to_reveal
+        new_filtered_da_matrix = []
+        for row in filtered_da_matrix:
+            if row[i1] == 0 and row[i2] == 0:
+                new_filtered_da_matrix.append(row)
+        new_filtered_da_matrix = np.array(new_filtered_da_matrix)
+        filtered_da_matrix = new_filtered_da_matrix
+
+        while len(filtered_da_matrix) > 0 and\
+              len(indices_algo_to_reveal) < n_algos:
+            se = set(indices_algo_to_reveal)
+            indices_remaining = [i for i in range(n_algos) if not i in se]
+            mean_remaining = np.mean(filtered_da_matrix, axis=0)
+            cols_remaining = mean_remaining[indices_remaining]
+            idx = indices_remaining[np.argmax(cols_remaining)]
+            indices_algo_to_reveal.append(idx)
+
+            # Only let the rows with row[idx] == 0 remain
+            new_filtered_da_matrix = []
+            for row in filtered_da_matrix:
+                if row[idx] == 0:
+                    new_filtered_da_matrix.append(row)
+            new_filtered_da_matrix = np.array(new_filtered_da_matrix)
+            filtered_da_matrix = new_filtered_da_matrix
+            # print("filtered_da_matrix.shape", filtered_da_matrix.shape)
+
+        if len(indices_algo_to_reveal) < n_algos:
+            se = set(indices_algo_to_reveal)
+            indices_remaining = [i for i in range(n_algos) if not i in se]
+            perm = np.random.permutation(len(indices_remaining))
+            indices_remaining = [indices_remaining[perm[i]] 
+                                 for i in range(len(indices_remaining))]
+            indices_algo_to_reveal += indices_remaining
+            assert len(indices_algo_to_reveal) == n_algos
+        
+        self.indices_algo_to_reveal = np.array(indices_algo_to_reveal)
+
+        print("Greedy+ indices_algo_to_reveal", self.indices_algo_to_reveal)
+
+
+    def fit(self, da_matrix: DAMatrix, i_dataset: int):
+        for i_algo in self.indices_algo_to_reveal:
+            perf = da_matrix.eval(i_dataset, i_algo)
+            self.history.append((i_dataset, i_algo, perf))
+
+
 class OptimalMetaLearner(S0A1MetaLearner):
 
     def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None):
@@ -179,6 +253,20 @@ class OptimalMetaLearner(S0A1MetaLearner):
         for i_algo in self.indices_algo_to_reveal:
             perf = da_matrix.eval(i_dataset, i_algo)
             self.history.append((i_dataset, i_algo, perf))
+
+
+def get_conditional_prob(perfs, i_target=None, cond_cols=None, cond_value=0):
+    if cond_cols is None:
+        cond_cols = []
+    
+    for col in cond_cols:
+        perfs = perfs[perfs[:, col] == cond_value]
+    
+    cond_prob = np.mean(perfs, axis=0)
+    if i_target is None:
+        return cond_prob
+    else:
+        return cond_prob[i_target]
 
 
 def all_perms(elements):
@@ -366,6 +454,10 @@ def get_meta_learner_color(meta_learner_name):
         color = 'green'
     elif meta_learner_name == 'greedy':
         color = 'red'
+    elif meta_learner_name == 'optimal':
+        color = 'orange'
+    elif meta_learner_name == 'greedy+':
+        color = 'darkred'
     else:
         color = None
     return color
@@ -376,6 +468,8 @@ def get_meta_learner_marker(meta_learner_name):
         marker = '<'
     elif meta_learner_name == 'greedy':
         marker = 'o'
+    elif meta_learner_name == 'greedy+':
+        marker = '+'
     elif meta_learner_name in {'random', 'random_search'}:
         marker = 's'
     elif meta_learner_name == 'optimal':
@@ -513,7 +607,8 @@ def run_once_random(da_matrix, perc_valid=0.5, n_meta_learners=100, fig=None,
 
 def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
                         with_error_bars=False, show_title=False, ylim=None,
-                        show_legend=False, figsize=(5, 4), show_alc=False):
+                        show_legend=True, figsize=(5, 4), show_alc=True,
+                        shuffle_row=True):
     """Run meta-training on and meta-validation by making a train/valid split.
 
     Args: 
@@ -530,10 +625,17 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
         ax = fig.axes[0]
 
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    
 
     n_datasets = len(da_matrix.perfs)
     n_algos = len(da_matrix.algos)
+
+    perfs = da_matrix.perfs
+    if shuffle_row:
+            permutation = np.random.permutation(n_datasets)
+            idx = np.empty_like(permutation)
+            idx[permutation] = np.arange(len(permutation))
+            perfs[:] = perfs[idx, :]
+            da_matrix.perfs = perfs  #TODO: avoid in place changes
 
     n_valid = int(perc_valid * n_datasets) # Number of lines for meta-validation
     indices_valid = range(n_datasets - n_valid, n_datasets)
@@ -627,13 +729,14 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
 
 def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5, 
                               with_error_bars=False, fixed_ylim=False, 
-                              show_title=False):
+                              show_title=False, return_alc_error_bar=False):
     fig = plt.figure()
     ax = plt.subplot(1, 1, 1)
 
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
     alcs = []
+    alc_error_bars = []
 
     max_n_algos = 0
 
@@ -665,6 +768,7 @@ def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5,
         perfs_arr = np.array(li_perfs)
         mean_perfs = np.mean(perfs_arr, axis=0)
         alc = sum(mean_perfs) / len(mean_perfs)
+        std_alc = np.std(np.mean(perfs_arr, axis=1))
         std_perfs = np.std(perfs_arr, axis=0)
 
         trans_offset = mtransforms.offset_copy(ax.transData, fig=fig, 
@@ -701,6 +805,7 @@ def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5,
                         )
 
         alcs.append(alc)
+        alc_error_bars.append(std_alc / np.sqrt(n_valid))
 
     plt.xlabel("# algorithms tried so far")
     if max_n_algos <= 10:
@@ -717,7 +822,10 @@ def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5,
     plt.legend(loc='best')
     plt.show()
 
-    return fig, alcs
+    if return_alc_error_bar:
+        return fig, alcs, alc_error_bars
+    else:
+        return fig, alcs
 
 
 def binarize(matrix, quantile=0.5):
@@ -757,7 +865,7 @@ def save_perfs(perfs, name_expe=None, results_dir='../results',
     np.savetxt(perfs_path, perfs, fmt='%i')
 
 
-def get_the_meta_learners(exclude_optimal=False):
+def get_the_meta_learners(exclude_optimal=False, exclude_greedy_plus=True):
     rs_meta_learner = RandomSearchMetaLearner()
     mean_meta_learner = MeanMetaLearner()
     greedy_meta_learner = GreedyMetaLearner()
@@ -766,6 +874,9 @@ def get_the_meta_learners(exclude_optimal=False):
         mean_meta_learner, 
         greedy_meta_learner, 
         ]
+    if not exclude_greedy_plus:
+        greedy_plus_meta_learner = GreedyPlusMetaLearner()
+        meta_learners.append(greedy_plus_meta_learner)
     if not exclude_optimal:
         optimal_meta_learner = OptimalMetaLearner()
         meta_learners.append(optimal_meta_learner)
@@ -908,23 +1019,26 @@ def plot_meta_learner_with_different_cardinal_clique(
 
     alcss = {}
     
-    meta_learners = get_the_meta_learners()
+    meta_learners = get_the_meta_learners(exclude_greedy_plus=False)
     for im, meta_learner in enumerate(meta_learners):
-        fig, alcs = plot_multiple_da_matrices(meta_learner, da_matrices)
+        fig, alcs, alc_error_bars = plot_multiple_da_matrices(
+            meta_learner, da_matrices, 
+            return_alc_error_bar=True)
         name_expe = '{}-different-cardinal-clique'.format(meta_learner.name)
         save_fig(fig, name_expe=name_expe)
         for i, da_matrix in enumerate(da_matrices):
             filename = "perfs-cardinal-clique={}.npy".format(i + 1)
             save_perfs(da_matrix.perfs, name_expe=name_expe, filename=filename)
         
-        alcss[meta_learner.name] = alcs
+        alcss[meta_learner.name] = [alcs, alc_error_bars]
 
     filepath = '../results/alc-vs-cardinal-clique.json'
     with open(filepath, 'w') as f:
         json.dump(alcss, f)
 
 
-def plot_alc_vs_cardinal_clique(with_noise=False, show_title=False):
+def plot_alc_vs_cardinal_clique(with_noise=False, show_title=False, 
+                                with_error_bars=True):
     filepath = '../results/alc-vs-cardinal-clique.json'
     with open(filepath, 'r') as f:
         alcss = json.load(f)
@@ -937,16 +1051,29 @@ def plot_alc_vs_cardinal_clique(with_noise=False, show_title=False):
     epsilon = 1e-2
 
     for im, ml in enumerate(alcss):
-        alcs = np.array(alcss[ml])
+        alcs, alc_error_bars = np.array(alcss[ml])
 
         noise = im * epsilon if with_noise else 0
-        
-        ax.plot(np.arange(len(alcs)) + 2 + noise, alcs + noise, 
-                label=ml,
-                marker=get_meta_learner_marker(ml),
-                markersize=5,
-                markevery=get_markevery(len(alcs)),
-        )
+
+        if with_error_bars:
+            ax.errorbar(np.arange(len(alcs)) + 2 + noise, alcs + noise, 
+                    yerr=alc_error_bars, 
+                    barsabove=True,
+                    capsize=1,
+                    label=ml,
+                    marker=get_meta_learner_marker(ml),
+                    markersize=5,
+                    markevery=get_markevery(len(alcs)),
+                    color=get_meta_learner_color(ml),
+            )
+        else:
+            ax.plot(np.arange(len(alcs)) + 2 + noise, alcs + noise, 
+                    label=ml,
+                    marker=get_meta_learner_marker(ml),
+                    markersize=10,
+                    markevery=get_markevery(len(alcs)),
+                    color=get_meta_learner_color(ml),
+            )
 
     plt.xlabel("Cardinal of the minimal clique")
     plt.ylabel('Area under Learning Curve (ALC)')

@@ -19,6 +19,7 @@ from mlt.meta_learner import run_once_random
 from mlt.meta_learner import get_da_matrix_from_real_dataset_dir
 from mlt.meta_learner import plot_meta_learner_with_different_cardinal_clique
 from mlt.meta_learner import plot_alc_vs_cardinal_clique
+from mlt.meta_learner import get_conditional_prob
 from mlt.data import DAMatrix, NFLDAMatrix, Case2DAMatrix, Case3dDAMatrix
 from mlt.data import BinarizedMultivariateGaussianDAMatrix
 from mlt.data import ComplementaryDAMatrix, CopulaCliqueDAMatrix
@@ -29,7 +30,11 @@ import os
 import pandas as pd
 
 from scipy.optimize import minimize, LinearConstraint
-from cvxopt import matrix, solvers
+try:
+    from cvxopt import matrix, solvers
+    USE_CVXOPT = True
+except:
+    USE_CVXOPT = False
 
 
 def test_run_and_plot_learning_curve():
@@ -197,11 +202,11 @@ def run_3b():
     n_algos = 5
     X1 = (np.random.rand(n_datasets, 1) < 0.5).astype(int)
     X2 = 1 - X1
-    perfs = np.concatenate([X1, X2, X1, X2], axis=1)
+    perfs = np.concatenate([X1, X1, X2, X2], axis=1)
     name_expe = '3b-complementary-2-algos'
     da_matrix = DAMatrix(perfs=perfs, name=name_expe)
     # da_matrix = ComplementaryDAMatrix()
-    meta_learners = get_the_meta_learners()
+    meta_learners = get_the_meta_learners(exclude_greedy_plus=True)
     run_expe(da_matrix, meta_learners, name_expe=name_expe)
 
 
@@ -214,7 +219,7 @@ def run_3d():
 
 
 def get_multivariate_bernoulli_3f(epsilon=1e-1, n_datasets=20000, 
-                                  use_cvxopt=False):
+                                  use_cvxopt=USE_CVXOPT):
     """ 
         ABCD
     x0: 0000
@@ -533,9 +538,9 @@ def run_3g():
     epsilon = 1e-1
     X1 = (np.random.rand(n_datasets, 1) < 0.5 + epsilon).astype(int)
     X2 = 1 - X1
-    perfs = np.concatenate([X1, X1, X2, X2], axis=1)
+    perfs = np.concatenate([X1, X1, X1, X2, X2, X2], axis=1)
     da_matrix = DAMatrix(perfs=perfs, name=name_expe)
-    meta_learners = get_the_meta_learners()
+    meta_learners = get_the_meta_learners(exclude_greedy_plus=True)
     run_expe(da_matrix, meta_learners, name_expe=name_expe, show_legend=False)
 
 
@@ -619,7 +624,15 @@ def run_leave_one_out_on_real_datasets():
         save_perfs(da_matrix.perfs, name_expe=name_expe)
 
 
+def test_get_conditional_prob():
+    perfs = (np.random.rand(100, 5) < 0.5).astype(int)
+    cp = get_conditional_prob(perfs, cond_cols=[0])
+    cp = get_conditional_prob(perfs, cond_cols=[0], i_target=1)
+    print(cp)
+
+
 if __name__ == '__main__':
+    pass
     # test_run_and_plot_learning_curve()
     # test_mean_meta_learner()
     # test_all_meta_learners()
@@ -628,11 +641,12 @@ if __name__ == '__main__':
     # test_binarize()
     # test_generate_binary_matrix_with_rank()
     # test_get_multivariate_bernoulli_3f()
+    # test_get_conditional_prob()
 
     # run_3a()
     # run_3b()
     # run_3d()
-    run_3f()
+    # run_3f()
     # run_3g()
     # run_nfl()
     
@@ -646,6 +660,6 @@ if __name__ == '__main__':
 
     # plot_meta_learner_with_different_cardinal_clique()
 
-    # plot_alc_vs_cardinal_clique()
+    plot_alc_vs_cardinal_clique()
 
     # get_multivariate_bernoulli_3f()
