@@ -157,7 +157,7 @@ def test_run_meta_validation():
 def run_expe(da_matrix, meta_learners, 
              name_expe=None,
              results_dir='../results', with_once_random=False, ylim=None, 
-             show_legend=True):
+             show_legend=False, figsize=(5,3)):
     """Use run_meta_validation to run experiment."""
     if with_once_random:
         fig = run_once_random(da_matrix)
@@ -165,7 +165,7 @@ def run_expe(da_matrix, meta_learners,
         fig = None
 
     fig = run_meta_validation(meta_learners, da_matrix, fig=fig, ylim=ylim, 
-                              show_legend=show_legend)
+                              show_legend=show_legend, figsize=figsize)
 
     # Create directory for the experiment
     expe_dir = os.path.join(results_dir, str(name_expe))
@@ -598,7 +598,7 @@ def run_on_real_dataset(dataset_dir):
         meta_learners = get_the_meta_learners(exclude_optimal=True)[1:] # Exclude random
 
         run_expe(da_matrix, meta_learners=meta_learners, 
-                name_expe=name_expe, with_once_random=True)
+                name_expe=name_expe, with_once_random=True, show_legend=True)
     else:
         raise ValueError("Not a directory: {}".format(dataset_dir))
 
@@ -664,7 +664,7 @@ if __name__ == '__main__':
     # run_3a()
     # run_3b()
     # run_3d()
-    run_3f()
+    # run_3f()
     # run_3g()
     # run_nfl()
     
@@ -672,7 +672,7 @@ if __name__ == '__main__':
     # plot_meta_learner_with_different_true_ranks()
     # plot_alc_vs_rank()
 
-    # run_on_all_real_datasets()
+    run_on_all_real_datasets()
 
     # run_leave_one_out_on_real_datasets()
 

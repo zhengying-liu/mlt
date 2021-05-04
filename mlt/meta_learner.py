@@ -365,7 +365,7 @@ def run_and_plot_learning_curve(meta_learners, da_matrix,
                     )
 
     plt.xlabel("# algorithms tried so far")
-    plt.ylabel('Probability of having found at least one good algo so far')
+    plt.ylabel('proba at least one algo succeeded')
     title = "Learning curve on \nda-matrix: {}, n_runs: {}"\
         .format(da_matrix.name, n_runs)
     if show_title:
@@ -438,7 +438,7 @@ def run_leave_one_out(meta_learners, da_matrix, n_runs=100, fig=None,
                     )
 
     plt.xlabel("# algorithms tried so far")
-    plt.ylabel('Probability of having found at least one good algo so far')
+    plt.ylabel('proba at least one algo succeeded')
     title = "Learning curve on \nda-matrix: {}, n_runs: {}"\
         .format(da_matrix.name, n_runs)
     if show_title:
@@ -514,10 +514,10 @@ def get_markersize(meta_learner_name):
 
 
 def run_once_random(da_matrix, perc_valid=0.5, n_meta_learners=100, fig=None,
-                    show_legend=False, show_fig=False, leave_one_out=False,
-                    show_title=False):
+                    show_legend=True, show_fig=False, leave_one_out=False,
+                    show_title=False, figsize=(5,3)):
     if fig is None:
-        fig = plt.figure()
+        fig = plt.figure(figsize=figsize)
     ax = plt.subplot(1, 1, 1)
 
     n_datasets = len(da_matrix.perfs)
@@ -592,7 +592,7 @@ def run_once_random(da_matrix, perc_valid=0.5, n_meta_learners=100, fig=None,
                     )
     
     plt.xlabel("# algorithms tried so far")
-    plt.ylabel('Probability of having found at least one good algo so far')
+    plt.ylabel('proba at least one algo succeeded')
     title = "Learning curve on \nda-matrix: {}"\
         .format(da_matrix.name)
     if show_title:
@@ -607,7 +607,7 @@ def run_once_random(da_matrix, perc_valid=0.5, n_meta_learners=100, fig=None,
 
 def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
                         with_error_bars=False, show_title=False, ylim=None,
-                        show_legend=True, figsize=(5, 4), show_alc=True,
+                        show_legend=True, figsize=(5,3), show_alc=True,
                         shuffle_row=True):
     """Run meta-training on and meta-validation by making a train/valid split.
 
@@ -703,8 +703,8 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
                         markevery=get_markevery(len(mean_perfs)),
                         alpha=0.5,
                         )
-
-    plt.xlabel("# algorithms tried so far")
+        ax.set_xlabel("# algorithms tried so far")
+    
     if n_algos <= 10:
         ticks = (np.arange(n_algos) + 1).astype(int)
         labels = [str(x) for x in ticks]
@@ -722,6 +722,7 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
             plt.xscale('log')
         else:
             plt.legend(loc='best')
+    plt.tight_layout()
     plt.show()
 
     return fig
@@ -729,8 +730,9 @@ def run_meta_validation(meta_learners, da_matrix, perc_valid=0.5, fig=None,
 
 def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5, 
                               with_error_bars=False, fixed_ylim=False, 
-                              show_title=False, return_alc_error_bar=False):
-    fig = plt.figure()
+                              show_title=False, return_alc_error_bar=False,
+                              figsize=(5,3)):
+    fig = plt.figure(figsize=figsize)
     ax = plt.subplot(1, 1, 1)
 
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -812,7 +814,7 @@ def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5,
         ticks = (np.arange(max_n_algos) + 1).astype(int)
         labels = [str(x) for x in ticks]
         plt.xticks(ticks=ticks, labels=labels)
-    plt.ylabel('Probability of having found at least one good algo so far')
+    plt.ylabel('proba at least one algo succeeded')
     if fixed_ylim:
         plt.ylim(0.45, 1.05)
     title = "Learning curve with \nmeta-learner: {}"\
@@ -820,6 +822,7 @@ def plot_multiple_da_matrices(meta_learner, da_matrices, perc_valid=0.5,
     if show_title:
         plt.title(title)
     plt.legend(loc='best')
+    plt.tight_layout()
     plt.show()
 
     if return_alc_error_bar:
@@ -1038,12 +1041,12 @@ def plot_meta_learner_with_different_cardinal_clique(
 
 
 def plot_alc_vs_cardinal_clique(with_noise=False, show_title=False, 
-                                with_error_bars=True):
+                                with_error_bars=True, figsize=(5,3)):
     filepath = '../results/alc-vs-cardinal-clique.json'
     with open(filepath, 'r') as f:
         alcss = json.load(f)
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(1, 1, 1)
 
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -1081,6 +1084,7 @@ def plot_alc_vs_cardinal_clique(with_noise=False, show_title=False,
     if show_title:
         plt.title(title)
     plt.legend(loc='best')
+    plt.tight_layout()
     plt.show()
     name_expe = 'alc-vs-cardinal-clique'
     save_fig(fig, name_expe=name_expe)

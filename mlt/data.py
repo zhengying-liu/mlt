@@ -5,7 +5,7 @@ import json
 import numpy as np
 import os
 
-np.random.seed(42)
+np.random.seed(40)
 
 
 class DAMatrix(object):
