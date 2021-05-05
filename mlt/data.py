@@ -1,9 +1,16 @@
 # Author: Zhengying Liu
 # Creation date: 4 Dec 2020
 
+from mlt.utils import download_file_from_google_drive
+
+import ast
 import json
+import matplotlib.pyplot as plt
+import matplotlib.transforms as mtransforms
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 import os
+import pandas as pd
 
 np.random.seed(40)
 
@@ -79,7 +86,7 @@ class DAMatrix(object):
                 os.makedirs(path_to_dir, exist_ok=True)
         
         # Save performance matrix
-        perfs_filename = "{}.perfs".format(self.name)
+        perfs_filename = "{}.data".format(self.name)
         perfs_path = os.path.join(path_to_dir, perfs_filename)
         np.savetxt(perfs_path, self.perfs)
 
@@ -104,22 +111,39 @@ class DAMatrix(object):
     def load(cls, path_to_dir):
         # Load DAMatrix
         files = os.listdir(path_to_dir)
-        ext_name = '.perfs'
+        ext_name = '.data'
         perfs_files = [x for x in files if x.endswith(ext_name)]
         if len(perfs_files) == 0:
-            raise FileNotFoundError("No `.perfs` file no in {}".format(path_to_dir))
+            raise FileNotFoundError("No `{}` file no in {}"\
+                .format(ext_name, path_to_dir))
         elif len(perfs_files) > 1:
-            raise FileNotFoundError("Multiple `.perfs` files found in {}: {}"\
-                .format(path_to_dir, perfs_files))
+            raise FileNotFoundError("Multiple `{}` files found in {}: {}"\
+                .format(ext_name, path_to_dir, perfs_files))
         
         perfs_file = perfs_files[0]
         name = perfs_file[:-len(ext_name)]
         perfs_path = os.path.join(path_to_dir, perfs_file)
         perfs = np.loadtxt(perfs_path)
 
-        # TODO: load datasets and algos
+        # load datasets and algos
+        datasets_file = "{}.datasets".format(name)
+        datasets_path = os.path.join(path_to_dir, datasets_file)
+        if os.path.isfile(datasets_path):
+            with open(datasets_path, 'r') as f:
+                line = f.readline()
+                datasets = ast.literal_eval(line)
+        else:
+            datasets = None
+        algos_file = "{}.algos".format(name)
+        algos_path = os.path.join(path_to_dir, algos_file)
+        if os.path.isfile(algos_path):
+            with open(algos_path, 'r') as f:
+                line = f.readline()
+                algos = ast.literal_eval(line)
+        else:
+            algos = None
 
-        return DAMatrix(perfs=perfs, name=name)
+        return DAMatrix(perfs=perfs, datasets=datasets, algos=algos, name=name)
         
 
 class NFLDAMatrix(DAMatrix):
@@ -382,3 +406,122 @@ def get_anonymized_lists(n_datasets, n_algos):
         algos.append(algo)
 
     return datasets, algos
+
+
+def download_autodl_data(filename='all_results.csv', save_dir=None):
+    if save_dir is None:
+        try:
+            pwd = os.path.dirname(__file__)
+        except:
+            pwd = '.'
+        save_dir = os.path.join(pwd, os.pardir, 'datasets', 'AutoDL')
+        if not os.path.isdir(save_dir):
+            os.makedirs(save_dir, exist_ok=True)
+    
+    filepath = os.path.abspath(os.path.join(save_dir, filename))
+    if os.path.isfile(filepath):
+        print("Data already downloaded at:\n\t{}\nand cached data will be used."\
+            .format(filepath))
+    else:
+        file_id = "1rS_RfcoiSVyCpRTfesX5Nn6DQliFb4DR"
+        print("Downloading AutoDL data from Google Drive...")
+        download_file_from_google_drive(file_id, filepath)
+        print("Data successfully downloaded to {}.".format(filepath))
+
+
+def parse_autodl_data(filepath=None, save=False):
+    if filepath is None:
+        pwd = os.path.dirname(__file__)
+        filepath = os.path.join(pwd, os.pardir, 
+            'datasets', 'AutoDL', 'all_results.csv')
+    df = pd.read_csv(filepath, index_col=0)
+    df_final = df[df['phase'].isin(['final', 'feedback'])]
+    participant_names = sorted(list(df_final['participant_name'].unique()))
+    task_names = list(df_final['task_name'].unique())
+    df_final = df_final.set_index(keys=['participant_name', 'task_name'])
+    D = len(task_names)
+    A = len(participant_names)
+    perfs = np.zeros(shape=(D, A))
+    for a, pn in enumerate(participant_names):
+        for d, tn in enumerate(task_names):
+            alc_score = df_final.loc[pn, tn]['alc_score']
+            perfs[d][a] = alc_score
+    datasets = task_names
+    algos = participant_names
+    # name='AutoDL-{}'.format(phase)
+    name = 'AutoDL'
+    da_matrix = DAMatrix(perfs=perfs, datasets=datasets, 
+                         algos=algos, name=name)
+    if save:
+        da_matrix.save(path_to_dir=os.path.dirname(filepath))
+    return da_matrix
+
+
+def plot_error_bars_empirical_vs_theoretical():
+    da_matrix = parse_autodl_data()
+    perfs = da_matrix.perfs
+    n_T = len(da_matrix.datasets)
+    n_B = len(da_matrix.algos)
+    delta = 0.05
+    def get_error_bar(n_T, n_B, delta):
+        error_bar = np.sqrt((np.log(n_B) + np.log(2 / delta)) / (2 * n_T))
+        return error_bar
+    meta_train = []
+    meta_test = []
+    ebs_emp = []
+    ebs_the = []
+    algo_names = da_matrix.algos
+    print(algo_names)
+    for i_a in range(n_B):
+        alcs = perfs[:, i_a]
+        perf_meta_train = np.mean(alcs[:5])
+        perf_meta_test = np.mean(alcs[5:])
+        eb_emp = perf_meta_test - perf_meta_train
+        
+        meta_train.append(perf_meta_train)
+        meta_test.append(perf_meta_test)
+        ebs_emp.append(eb_emp)
+
+        eb_the = get_error_bar(n_T, i_a + 1, delta)
+        ebs_the.append(eb_the)
+    
+    fig = plt.figure()
+    ax = plt.subplot(1, 1, 1)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    df = pd.DataFrame(
+        {
+            'algo_name': algo_names,
+            'meta_train': meta_train,
+            'meta_test': meta_test,
+            'ebs_emp': ebs_emp,
+        }
+    )
+    df = df.sort_values(by='meta_train', ascending=False)
+    print(df)
+
+    meta_train = list(df['meta_train'])
+    meta_test = list(df['meta_test'])
+    ebs_emp = list(df['ebs_emp'])
+    algo_names = list(df['algo_name'])
+
+    ebs_emp_max = []
+    eb_emp_max = - 2 ** 32
+    for i_a in range(n_B):
+        eb_emp = ebs_emp[i_a]
+        eb_emp_max = max(abs(eb_emp), eb_emp_max)
+        ebs_emp_max.append(eb_emp_max)
+
+    ax.plot(meta_train, label='meta-train')
+    ax.plot(meta_test, label='meta-test')
+    ax.plot(ebs_emp, label='meta-test - meta-train')
+    ax.plot(ebs_emp_max, label='max(abs(meta-test - meta-train))')
+    ax.plot(ebs_the, label='Theoretical error bars (delta={:.2f})'.format(delta))
+
+    ax.set_xticks(range(n_B))
+    ax.set_xticklabels(algo_names, rotation=45)
+
+    plt.legend()
+    # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+    plt.show()

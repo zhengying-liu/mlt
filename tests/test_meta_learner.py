@@ -20,6 +20,7 @@ from mlt.meta_learner import get_da_matrix_from_real_dataset_dir
 from mlt.meta_learner import plot_meta_learner_with_different_cardinal_clique
 from mlt.meta_learner import plot_alc_vs_cardinal_clique
 from mlt.meta_learner import get_conditional_prob
+from mlt.meta_learner import plot_error_bar_vs_B
 from mlt.data import DAMatrix, NFLDAMatrix, Case2DAMatrix, Case3dDAMatrix
 from mlt.data import BinarizedMultivariateGaussianDAMatrix
 from mlt.data import ComplementaryDAMatrix, CopulaCliqueDAMatrix
@@ -593,8 +594,10 @@ def run_on_real_dataset(dataset_dir):
         name_expe = data_file.split('.')[0]
 
         # Load real dataset and binarize
-        perf = binarize(np.loadtxt(data_path))
-        da_matrix = DAMatrix(perfs=perf, name=name_expe)
+        perfs = binarize(np.loadtxt(data_path))
+        # da_matrix = DAMatrix(perfs=perf, name=name_expe)
+        da_matrix = DAMatrix.load(dataset_dir)
+        da_matrix.perfs = perfs
         meta_learners = get_the_meta_learners(exclude_optimal=True)[1:] # Exclude random
 
         run_expe(da_matrix, meta_learners=meta_learners, 
@@ -649,6 +652,11 @@ def test_get_conditional_prob():
     print(cp)
 
 
+def test_plot_error_bar_vs_B():
+    plot_error_bar_vs_B()
+    plt.show()
+
+
 if __name__ == '__main__':
     pass
     # test_run_and_plot_learning_curve()
@@ -672,7 +680,8 @@ if __name__ == '__main__':
     # plot_meta_learner_with_different_true_ranks()
     # plot_alc_vs_rank()
 
-    run_on_all_real_datasets()
+    # run_on_all_real_datasets()
+    # run_on_real_dataset("../datasets/AutoDL")
 
     # run_leave_one_out_on_real_datasets()
 
@@ -681,3 +690,5 @@ if __name__ == '__main__':
     # plot_alc_vs_cardinal_clique()
 
     # get_multivariate_bernoulli_3f()
+
+    test_plot_error_bar_vs_B()

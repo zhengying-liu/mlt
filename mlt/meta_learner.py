@@ -92,6 +92,9 @@ class MeanMetaLearner(S0A1MetaLearner):
         self.theta_estimation = np.mean(filtered_da_matrix, axis=0)
         self.indices_algo_to_reveal = np.array(np.argsort(self.theta_estimation)[::-1])
         print("Mean indices_algo_to_reveal", self.indices_algo_to_reveal)
+        if da_matrix.algos[0] != "Algorithm 0":
+            algos_to_reveal = [da_matrix.algos[i] for i in self.indices_algo_to_reveal]
+            print("Mean algorithms to reveal:", algos_to_reveal)
 
     def fit(self, da_matrix: DAMatrix, i_dataset: int):
         for i_algo in self.indices_algo_to_reveal:
@@ -481,19 +484,22 @@ def get_meta_learner_marker(meta_learner_name):
 
 def get_da_matrix_from_real_dataset_dir(dataset_dir):
     if os.path.isdir(dataset_dir):
-        data_files = [x for x in os.listdir(dataset_dir) 
-                        if x.endswith('.data')]
-        if len(data_files) != 1:
-            raise ValueError("The dataset directory {} ".format(dataset_dir) + 
-                                "should contain one `.data` file but got " +
-                                "{}.".format(data_files))
-        data_file = data_files[0]
-        data_path = os.path.join(dataset_dir, data_file)
-        name_expe = data_file.split('.')[0]
+        # data_files = [x for x in os.listdir(dataset_dir) 
+        #                 if x.endswith('.data')]
+        # if len(data_files) != 1:
+        #     raise ValueError("The dataset directory {} ".format(dataset_dir) + 
+        #                         "should contain one `.data` file but got " +
+        #                         "{}.".format(data_files))
+        # data_file = data_files[0]
+        # data_path = os.path.join(dataset_dir, data_file)
+        # name_expe = data_file.split('.')[0]
 
-        # Load real dataset and binarize
-        perf = binarize(np.loadtxt(data_path))
-        da_matrix = DAMatrix(perfs=perf, name=name_expe)
+        # # Load real dataset and binarize
+        # perf = binarize(np.loadtxt(data_path))
+        # da_matrix = DAMatrix(perfs=perf, name=name_expe)
+        # return da_matrix
+        da_matrix = DAMatrix.load(dataset_dir)
+        print("yoyoyo", da_matrix.datasets)
         return da_matrix
     else:
         raise ValueError("Not a directory: {}".format(dataset_dir))
@@ -1091,8 +1097,23 @@ def plot_alc_vs_cardinal_clique(with_noise=False, show_title=False,
     return fig
     
 
-
+# For NeurIPS 2021
+def plot_error_bar_vs_B(n_T=10, n_B=20, delta=0.05):
+    def get_error_bar(n_T, n_B, delta):
+        error_bar = np.sqrt((np.log(n_B) + np.log(2 / delta)) / (2 * n_T))
+        return error_bar
+    error_bars = [get_error_bar(n_T, b, delta) for b in range(1, n_B + 1)]
     
+    fig = plt.figure()
+    ax = plt.subplot(1, 1, 1)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    
+    ax.plot(error_bars, markersize=10, marker='o')
+    plt.title("Error bar vs |B|")
+    plt.xlabel("|B|")
+    plt.ylabel("Error bar")
+
+    return fig
 
 
     

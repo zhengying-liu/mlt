@@ -3,6 +3,8 @@
 
 from mlt.data import DAMatrix, NFLDAMatrix, ComplementaryDAMatrix
 from mlt.data import BinarizedMultivariateGaussianDAMatrix
+from mlt.data import download_autodl_data, parse_autodl_data
+from mlt.data import plot_error_bars_empirical_vs_theoretical
 
 import numpy as np
 
@@ -24,9 +26,24 @@ def test_binarized_mg():
 def test_complementary():
     da_matrix = ComplementaryDAMatrix()
     print(da_matrix.perfs)
+
+
+def test_download_autodl_data():
+    download_autodl_data()
+
+
+def test_parse_autodl_data():
+    parse_autodl_data(save=True)
+
+
+def test_plot_error_bars_empirical_vs_theoretical():
+    plot_error_bars_empirical_vs_theoretical()
     
 
 if __name__ == '__main__':
     # test_nfldamatrix()
     # test_binarized_mg()
-    test_complementary()
+    # test_complementary()
+    # test_download_autodl_data()
+    # test_parse_autodl_data()
+    test_plot_error_bars_empirical_vs_theoretical()
