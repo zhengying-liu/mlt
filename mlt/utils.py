@@ -1,7 +1,7 @@
 # Author: Zhengying LIU
 # Create: 4 May 2021
 
-
+import os
 import requests
 
 def download_file_from_google_drive(id, destination):
@@ -35,3 +35,19 @@ def download_file_from_google_drive(id, destination):
         response = session.get(URL, params = params, stream = True)
 
     save_response_content(response, destination)    
+
+
+def save_fig(fig, name_expe=None, results_dir='../results',
+             filename=None):
+    if filename is None:
+        if name_expe is None:
+            filename = 'learning-curves.jpg'
+        else:
+            filename = '{}-learning-curves.jpg'.format(name_expe)
+
+    # Create directory for the experiment
+    expe_dir = os.path.join(results_dir, str(name_expe))
+    os.makedirs(expe_dir, exist_ok=True)
+    # Save figure
+    fig_path = os.path.join(expe_dir, filename)
+    fig.savefig(fig_path)

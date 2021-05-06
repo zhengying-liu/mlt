@@ -408,6 +408,14 @@ def get_anonymized_lists(n_datasets, n_algos):
     return datasets, algos
 
 
+def get_da_matrix_from_real_dataset_dir(dataset_dir):
+    if os.path.isdir(dataset_dir):
+        da_matrix = DAMatrix.load(dataset_dir)
+        return da_matrix
+    else:
+        raise ValueError("Not a directory: {}".format(dataset_dir))
+
+
 def download_autodl_data(filename='all_results.csv', save_dir=None):
     if save_dir is None:
         try:
