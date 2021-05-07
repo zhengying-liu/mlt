@@ -20,7 +20,8 @@ from mlt.meta_learner import plot_alc_vs_cardinal_clique
 from mlt.meta_learner import get_conditional_prob
 from mlt.meta_learner import plot_error_bar_vs_B
 from mlt.meta_learner import get_meta_scores_vs_n_tasks
-from mlt.meta_learner import plot_curve_with_error_bars
+
+from mlt.figures import plot_curve_with_error_bars
 
 from mlt.data import DAMatrix, NFLDAMatrix, Case2DAMatrix, Case3dDAMatrix
 from mlt.data import BinarizedMultivariateGaussianDAMatrix
@@ -668,54 +669,6 @@ def test_get_meta_scores_vs_n_tasks():
     curves = get_meta_scores_vs_n_tasks(da_matrix, meta_learner)
     # print(curves)
     return curves
-
-
-def test_plot_curve_with_error_bars():
-    datasets_dir = "../datasets"
-
-    score_names = {
-        'artificial_r50c20r20': 'Performance',
-        'AutoDL': 'ALC',
-        'AutoML': 'BAC or R2',
-        'OpenML-Alors': 'Accuracy',
-        'Statlog': 'Error rate',
-    }
-    
-    for d in os.listdir(datasets_dir):
-        dataset_dir = os.path.join(datasets_dir, d)
-        if os.path.isdir(dataset_dir):
-            da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
-            meta_learner = MeanMetaLearner()
-            
-
-            name_expe = "alc-vs-n_tasks"
-            if d == 'AutoDL':
-                n_meta_train = 5
-            else:
-                n_meta_train = da_matrix.perfs.shape[0] // 2
-            
-            n_meta_test = da_matrix.perfs.shape[0] - n_meta_train
-
-            curves = get_meta_scores_vs_n_tasks(da_matrix, meta_learner, 
-                n_meta_train=n_meta_train)
-
-            score_name = score_names[d]
-
-            fig = plot_curve_with_error_bars(curves[0], curves[1], 
-                label='meta-train')
-            fig = plot_curve_with_error_bars(curves[2], curves[3], fig=fig, 
-                label='meta-valid')
-            fig = plot_curve_with_error_bars(curves[4], curves[5], fig=fig, 
-                label='meta-test')
-            plt.xlabel("Number of tasks used for meta-training " +
-                "(|Dtr|={}, |Dte|={})".format(n_meta_train, n_meta_test))
-            plt.ylabel("Average {} score".format(score_name))
-            plt.legend()
-            plt.title("{} - {} VS #tasks".format(d, score_name))
-            plt.show()
-            save_fig(fig, name_expe=name_expe, 
-                filename="{}-alc-vs-n_tasks.jpg".format(d))
-    
 
 
 if __name__ == '__main__':

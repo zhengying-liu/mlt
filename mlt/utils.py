@@ -1,6 +1,7 @@
 # Author: Zhengying LIU
 # Create: 4 May 2021
 
+import numpy as np
 import os
 import requests
 
@@ -51,3 +52,8 @@ def save_fig(fig, name_expe=None, results_dir='../results',
     # Save figure
     fig_path = os.path.join(expe_dir, filename)
     fig.savefig(fig_path)
+
+
+def get_theoretical_error_bar(n_T, n_B, delta):
+    error_bar = np.sqrt((np.log(n_B) + np.log(2 / delta)) / (2 * n_T))
+    return error_bar

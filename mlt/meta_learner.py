@@ -13,6 +13,7 @@ import os
 from mlt.data import DAMatrix
 from mlt.data import CopulaCliqueDAMatrix
 from mlt.utils import save_fig
+from mlt.utils import get_theoretical_error_bar
 
 
 class S0A1MetaLearner(object):
@@ -83,6 +84,9 @@ class MeanMetaLearner(S0A1MetaLearner):
 
     def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None):
         self.name = 'mean'
+
+        if excluded_indices is None:
+            excluded_indices = []
 
         excluded_indices = set(excluded_indices)
         filtered_da_matrix = []
@@ -1064,10 +1068,8 @@ def plot_alc_vs_cardinal_clique(with_noise=False, show_title=False,
 
 # For NeurIPS 2021
 def plot_error_bar_vs_B(n_T=10, n_B=20, delta=0.05):
-    def get_error_bar(n_T, n_B, delta):
-        error_bar = np.sqrt((np.log(n_B) + np.log(2 / delta)) / (2 * n_T))
-        return error_bar
-    error_bars = [get_error_bar(n_T, b, delta) for b in range(1, n_B + 1)]
+    
+    error_bars = [get_theoretical_error_bar(n_T, b, delta) for b in range(1, n_B + 1)]
     
     fig = plt.figure()
     ax = plt.subplot(1, 1, 1)
@@ -1081,114 +1083,4 @@ def plot_error_bar_vs_B(n_T=10, n_B=20, delta=0.05):
     return fig
 
 
-def get_meta_scores_vs_n_tasks(da_matrix, meta_learner, 
-                               n_meta_train=5,
-                               repeat=100):
-    """Get meta-scores (meta-train, meta-valid, meta-test) vs number of tasks
-    in the meta-training set. This gives a sort of (meta-)learning curves.
 
-    Suppose there are in total `T` tasks in meta-train. At step `t`, choose 
-    randomly `t` tasks among the `T` tasks and apply the meta-learner. Use 
-    the `T - t` tasks for meta-validation and use meta-test for test score. 
-    Repeat this process `repeat` times and compute the mean and std.
-
-    Here we only use the first algorithm predicted by the meta-learner.
-
-    N.B. For a DA matrix, we suppose the first `n_meta_train` tasks are used 
-    as meta-train and the rest is used as  meta-test.
-    """
-    n_datasets = len(da_matrix.datasets)
-    if n_meta_train > n_datasets:
-        raise ValueError("The number of meta-train tasks should be less than " +
-                         "or equal to the total number of tasks." +
-                         "But got {} > {}.".format(n_meta_train, n_datasets))
-    T = n_meta_train
-
-    # Form meta-training set
-    perfs = da_matrix.perfs[:T, :]
-    datasets = da_matrix.datasets[:T]
-    algos = da_matrix.algos
-    name = da_matrix.name + "-meta-train"
-    da_meta_train = DAMatrix(perfs=perfs, datasets=datasets, 
-                             algos=algos, name=name)
-
-    # Form meta-test set
-    perfs = da_matrix.perfs[T:, :]
-    datasets = da_matrix.datasets[T:]
-    algos = da_matrix.algos
-    name = da_matrix.name + "-meta-test"
-    da_meta_test = DAMatrix(perfs=perfs, datasets=datasets, 
-                            algos=algos, name=name)
-
-    mean_tr = []
-    std_tr = []
-    mean_va = []
-    std_va = []
-    mean_te = []
-    std_te = []
-
-    for t in range(1, T + 1):
-        s_tr = []
-        s_va = []
-        s_te = []
-        for _ in range(repeat):
-            # Choose t among T tasks for meta-train, without replacement
-            valid_indices = set(np.random.choice(T, T - t, replace=False))
-            meta_learner.meta_fit(da_meta_train, valid_indices)
-            i_algo = meta_learner.indices_algo_to_reveal[0]
-            # print(da_meta_train.algos[i_algo])
-            # print(valid_indices)
-
-            # Meta-train & meta-valid score
-            sum_tr = 0
-            sum_va = 0
-            for i in range(T):
-                if i in valid_indices:
-                    sum_va += da_meta_train.perfs[i, i_algo]
-                else:
-                    sum_tr += da_meta_train.perfs[i, i_algo]
-            avg_tr = sum_tr / t
-            avg_va = sum_va / (T - t) if T > t else np.nan
-            s_tr.append(avg_tr)
-            s_va.append(avg_va)
-
-            # Meta-test score
-            avg_te = np.mean(da_meta_test.perfs[:, i_algo])
-            s_te.append(avg_te)
-        
-        mean_tr.append(np.mean(s_tr))
-        std_tr.append(np.std(s_tr))
-        mean_va.append(np.mean(s_va))
-        std_va.append(np.std(s_va))
-        mean_te.append(np.mean(s_te))
-        std_te.append(np.std(s_te))
-
-    return mean_tr, std_tr, mean_va, std_va, mean_te, std_te
-    
-
-def plot_curve_with_error_bars(li_mean, li_std, fig=None, label=None):
-    if fig is None:
-        fig = plt.figure()
-
-    if len(fig.axes) > 0:
-        ax = fig.axes[0]
-    else:
-        ax = fig.add_subplot(1, 1, 1)
-
-    # Integer x-axis ticks
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-
-    a_mean = np.array(li_mean)
-    a_std = np.array(li_std)
-    upper = a_mean + a_std
-    lower = a_mean - a_std
-
-    X = np.arange(len(li_mean)) + 1
-    
-    ax.plot(X, li_mean, marker='o', label=label)
-
-    ax.fill_between(X, upper, lower, alpha=0.3)
-        
-    return fig
-
-    

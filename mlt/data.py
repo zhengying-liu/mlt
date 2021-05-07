@@ -144,6 +144,50 @@ class DAMatrix(object):
             algos = None
 
         return DAMatrix(perfs=perfs, datasets=datasets, algos=algos, name=name)
+
+
+    def train_test_split(self, train_size=0.5, shuffling=True):
+        n_datasets = len(self.datasets)
+
+        if isinstance(train_size, float):
+            if not (train_size <= 1 and train_size > 0):
+                raise ValueError("`train_size` should be in (0, 1].")
+            train_size = int(n_datasets * train_size)
+
+        if shuffling:
+            indices_train = np.random.choice(n_datasets, train_size, 
+                replace=False)
+            indices_test = [i for i in range(n_datasets) if not i in set(indices_train)]
+        else:
+            indices_train = range(train_size)
+            indices_test = range(train_size, n_datasets)
+        
+
+        perfs = self.perfs[indices_train, :]
+        datasets = list(np.array(self.datasets)[indices_train])
+        algos = self.algos
+        name = self.name + "-meta-train"
+        da_meta_train = DAMatrix(perfs=perfs, datasets=datasets, 
+                                algos=algos, name=name)
+
+        perfs = self.perfs[indices_test, :]
+        datasets = list(np.array(self.datasets)[indices_test])
+        algos = self.algos
+        name = self.name + "-meta-test"
+        da_meta_test = DAMatrix(perfs=perfs, datasets=datasets, 
+                                algos=algos, name=name)
+        
+        return da_meta_train, da_meta_test
+
+
+    def get_algo_subset(self, indices_algo):
+        perfs = self.perfs[:, indices_algo]
+        datasets = self.datasets
+        algos = list(np.array(self.algos)[indices_algo])
+        name = self.name + "-algo-subset"
+        da_algo_subset = DAMatrix(perfs=perfs, datasets=datasets, 
+                                algos=algos, name=name)
+        return da_algo_subset
         
 
 class NFLDAMatrix(DAMatrix):
