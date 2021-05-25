@@ -94,13 +94,13 @@ class DAMatrix(object):
         datasets_filename = "{}.datasets".format(self.name)
         datasets_path = os.path.join(path_to_dir, datasets_filename)
         with open(datasets_path, 'w') as f:
-            f.write(str(self.datasets))
+            f.write(str([d.name for d in self.datasets]))
 
         # Save list of algos
         algos_filename = "{}.algos".format(self.name)
         algos_path = os.path.join(path_to_dir, algos_filename)
         with open(algos_path, 'w') as f:
-            f.write(str(self.algos))
+            f.write(str([a.name for a in self.algos]))
 
         print("Successfully saved DAMatrix {} to {}."\
             .format(self.name, path_to_dir))
@@ -396,6 +396,132 @@ class BinarizedMultivariateGaussianDAMatrix(DAMatrix):
             )
 
 
+class BetaDistributionDAMatrix(DAMatrix):
+
+    def __init__(self, alpha_beta_pairs, n_datasets=2000,
+                 name='BetaDist'):
+        """
+        Args:
+          alpha_beta_pairs: list of tuples of the form (alpha_i, beta_i), the
+              parameters of the beta distribution of each column
+          n_datasets: int, number of datasets (i.e. rows) in the DA matrix
+          name: str, name of the DA matrix
+        """
+        n_algos = len(alpha_beta_pairs)
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
+
+        cols = []
+
+        for alpha, beta in alpha_beta_pairs:
+            col = np.random.beta(alpha, beta, size=n_datasets)
+            cols.append(col)
+
+        perfs = np.array(cols).T
+
+        DAMatrix.__init__(self, 
+            perfs=perfs,
+            datasets=datasets, 
+            algos=algos,
+            name=name, 
+            )
+
+
+class DirichletDistributionDAMatrix(DAMatrix):
+
+    def __init__(self, alpha, n_datasets=2000, name="DirichletDist"):
+        """
+        Args:
+          alpha: list of floats, the parameters of the Dirichlet distribution
+          n_datasets: int, number of datasets (i.e. rows) in the DA matrix
+          name: str, name of the DA matrix
+        """
+        n_algos = len(alpha)
+
+        perfs = np.random.dirichlet(alpha, size=n_datasets)
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
+
+        super().__init__(perfs=perfs, datasets=datasets, algos=algos, name=name)
+
+
+class TransposeDirichletDistributionDAMatrix(DAMatrix):
+
+    def __init__(self, alpha, n_algos=20, name="TransDirichletDist"):
+        """
+        Args:
+          alpha: list of floats, the parameters of the Dirichlet distribution
+          n_algos: int, number of algorithms (i.e. columns) in the DA matrix
+          name: str, name of the DA matrix
+        """
+        n_datasets = len(alpha)
+
+        perfs = np.random.dirichlet(alpha, size=n_algos).T
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
+
+        super().__init__(perfs=perfs, datasets=datasets, algos=algos, name=name)
+
+
+class URVDAMatrix(DAMatrix):
+
+    def __init__(self, rank=20, U=None, V=None, n_datasets=100, n_algos=20, 
+                 name="URV", normalized=True):
+        """Performance matrix of the form URV where R is a random matrix of 
+        standard Gaussian entries. If `normalized`, a standard logistic function
+        (1 / (1 + e^(-x)) is applied to all entries in the end.
+
+        Args:
+          rank: R will be a square matrix of shape (rank, rank).
+          n_datasets: int, number of datasets (i.e. rows) in the DA matrix
+          n_algos: int, number of algorithms (i.e. columns) in the DA matrix
+          U: NumPy array of shape (n_datasets, rank)
+          V: NumPy array of shape (rank, n_algos)
+          name: str, name of the DA matrix
+          normalized: 
+        """
+        R = np.random.randn(rank, rank)
+
+        if U is None:
+            U = np.random.randn(n_datasets, rank)
+        
+        if V is None:
+            V = np.random.randn(rank, n_algos)
+
+        perfs = U.dot(R).dot(V)
+
+        if normalized:
+            perfs = 1 / (1 + np.exp(-perfs))
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
+
+        super().__init__(perfs=perfs, datasets=datasets, algos=algos, name=name)
+
+
+class DepUDirichletDistributionDAMatrix(DAMatrix):
+
+    def __init__(self, alpha, n_datasets=2000, name="DepUDirichletDist"):
+        """Scale every column to have 0.5 as average. 
+        
+        TODO: Maximum thresholded to 1.
+
+        Args:
+          alpha: list of floats, the parameters of the Dirichlet distribution
+          n_datasets: int, number of datasets (i.e. rows) in the DA matrix
+          name: str, name of the DA matrix
+        """
+        n_algos = len(alpha)
+
+        perfs = np.random.dirichlet(alpha, size=n_datasets)
+
+        for i in range(n_algos):
+            perfs[:, i] = perfs[:, i] / np.mean(perfs[:, i]) / 2
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
+
+        super().__init__(perfs=perfs, datasets=datasets, algos=algos, name=name)
+
+
 class BetaAlgo(object):
 
     def __init__(self, name=None, code=None):
@@ -577,3 +703,26 @@ def plot_error_bars_empirical_vs_theoretical():
     # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
     plt.show()
+
+
+def to_df_for_cd_diagram(da_matrix):
+    classifier_names = []
+    dataset_names = []
+    accuracies = []
+
+    datasets = da_matrix.datasets
+    algos = da_matrix.algos
+
+    for i_d in range(len(datasets)):
+        for i_a in range(len(algos)):
+            classifier_names.append(algos[i_a])
+            dataset_names.append(datasets[i_d])
+            accuracies.append(da_matrix.perfs[i_d, i_a])
+
+    df = pd.DataFrame({
+        'classifier_name': classifier_names,
+        'dataset_name': dataset_names,
+        'accuracy': accuracies,
+    })
+
+    return df

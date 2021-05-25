@@ -2,9 +2,18 @@
 # Creation data: 4 Dec 2020
 
 from mlt.data import DAMatrix, NFLDAMatrix, ComplementaryDAMatrix
+from mlt.data import BetaDistributionDAMatrix
+from mlt.data import DirichletDistributionDAMatrix
 from mlt.data import BinarizedMultivariateGaussianDAMatrix
+from mlt.data import DepUDirichletDistributionDAMatrix
+from mlt.data import TransposeDirichletDistributionDAMatrix
+from mlt.data import URVDAMatrix
+
 from mlt.data import download_autodl_data, parse_autodl_data
 from mlt.data import plot_error_bars_empirical_vs_theoretical
+from mlt.data import to_df_for_cd_diagram
+
+from mlt.figures import inspect_da_matrix
 
 import numpy as np
 
@@ -38,7 +47,66 @@ def test_parse_autodl_data():
 
 def test_plot_error_bars_empirical_vs_theoretical():
     plot_error_bars_empirical_vs_theoretical()
-    
+
+
+def test_to_df_for_cd_diagram():
+    da_matrix = parse_autodl_data()
+    df = to_df_for_cd_diagram(da_matrix)
+    df.to_csv('autodl.csv', index=False)
+
+
+def test_BetaDistributionDAMatrix():
+    n_algos = 20
+    delta = np.random.rand(n_algos) * 2    # U[0, 2]
+    s = 10                                      # alpha + beta
+    alpha = (s + delta) / 2
+    alpha = np.sort(alpha)                      # Ascending alpha
+    beta = s - alpha
+    alpha_beta_pairs = [(alpha[i], beta[i]) for i in range(n_algos)]
+
+    da_matrix = BetaDistributionDAMatrix(alpha_beta_pairs, name='IndepBetaDist')
+
+    da_matrix.save()
+
+    inspect_da_matrix(da_matrix)
+
+
+def test_NFLBetaDist():
+    n_algos = 20
+    alpha_beta_pairs = [(5, 5)] * n_algos
+    da_matrix = BetaDistributionDAMatrix(alpha_beta_pairs, name='NFLBetaDist')
+    da_matrix.save()
+    inspect_da_matrix(da_matrix)
+
+
+def test_DirichletDistributionDAMatrix():
+    alpha = np.arange(20) + 1
+    da_matrix = DirichletDistributionDAMatrix(alpha)
+    da_matrix.save()
+    inspect_da_matrix(da_matrix)
+
+
+def test_DepUDirichletDistributionDAMatrix():
+    alpha = np.arange(20) + 1
+    da_matrix = DepUDirichletDistributionDAMatrix(alpha)
+    da_matrix.save()
+    inspect_da_matrix(da_matrix)
+
+
+def test_TransposeDirichletDistributionDAMatrix():
+    n_datasets = 200
+    mu = 100
+    alpha = mu * (np.arange(n_datasets) + 1)
+    da_matrix = TransposeDirichletDistributionDAMatrix(alpha)
+    da_matrix.save()
+    inspect_da_matrix(da_matrix)
+
+
+def test_URVDAMatrix():
+    da_matrix = URVDAMatrix(normalized=True)
+    da_matrix.save()
+    inspect_da_matrix(da_matrix)
+
 
 if __name__ == '__main__':
     # test_nfldamatrix()
@@ -46,4 +114,11 @@ if __name__ == '__main__':
     # test_complementary()
     # test_download_autodl_data()
     # test_parse_autodl_data()
-    test_plot_error_bars_empirical_vs_theoretical()
+    # test_plot_error_bars_empirical_vs_theoretical()
+    # test_to_df_for_cd_diagram()
+    # test_BetaDistributionDAMatrix()
+    # test_NFLBetaDist()
+    # test_DirichletDistributionDAMatrix()
+    # test_DepUDirichletDistributionDAMatrix()
+    # test_TransposeDirichletDistributionDAMatrix()
+    test_URVDAMatrix()

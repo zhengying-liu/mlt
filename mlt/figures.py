@@ -7,6 +7,8 @@ from mlt.meta_learner import MeanMetaLearner
 from mlt.utils import save_fig
 from mlt.utils import get_theoretical_error_bar
 
+import seaborn as sns
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,6 +39,35 @@ def plot_curve_with_error_bars(li_mean, li_std, fig=None, label=None, **kwargs):
     ax.fill_between(X, upper, lower, alpha=0.3)
         
     return fig
+
+
+def inspect_da_matrix(da_matrix, results_dir="../results"):
+    perfs = np.array(da_matrix.perfs)
+    li_mean = np.mean(perfs, axis=0)
+    li_std = np.std(perfs, axis=0)
+
+    fig = plot_curve_with_error_bars(li_mean, li_std)
+    name = da_matrix.name
+    n_datasets = len(da_matrix.datasets)
+    n_algos = len(da_matrix.algos)
+    assert n_datasets == perfs.shape[0]
+    assert n_algos == perfs.shape[1]
+    title = "{} (n_datasets={}, n_algos={})".format(name, n_datasets, n_algos) 
+    plt.title(title)
+
+    heatmap = sns.clustermap(perfs)
+    heatmap.fig.suptitle(name)
+    heatmap.fig.savefig(os.path.join(results_dir, name))
+
+    cov = np.corrcoef(perfs.T)
+    hm_cov = sns.clustermap(cov)
+    title = name + " covariance"
+    hm_cov.fig.suptitle(title)
+    hm_cov.fig.savefig(os.path.join(results_dir, title))
+
+    plt.show()
+
+    
 
 
 ############################
@@ -122,8 +153,18 @@ def get_meta_scores_vs_n_tasks(da_matrix, meta_learner,
     return mean_tr, std_tr, mean_va, std_va, mean_te, std_te
 
 
-def plot_score_vs_n_tasks_with_error_bars(repeat=100):
-    datasets_dir = "../datasets"
+def plot_score_vs_n_tasks_with_error_bars(repeat=100, 
+        datasets_dir="../datasets", 
+        dataset_names=None):
+    """
+    Args:
+      repeat: int, number of repetitions for sampling 
+      datasets_dir: str, path to directory containing all (meta-)datasets
+      dataset_names: list of str, list of dataset names to carry out the plot
+
+    Returns:
+      Saves several figures.
+    """
 
     score_names = {
         'artificial_r50c20r20': 'Performance',
@@ -132,8 +173,13 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100):
         'OpenML-Alors': 'Accuracy',
         'Statlog': 'Error rate',
     }
+
+    if dataset_names is None:
+        ds = os.listdir(datasets_dir)
+    else:
+        ds = [d for d in os.listdir(datasets_dir) if d in set(dataset_names)]
     
-    for d in os.listdir(datasets_dir):
+    for d in ds:
         dataset_dir = os.path.join(datasets_dir, d)
         if os.path.isdir(dataset_dir):
             da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
@@ -149,9 +195,9 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100):
             n_meta_test = da_matrix.perfs.shape[0] - n_meta_train
 
             curves = get_meta_scores_vs_n_tasks(da_matrix, meta_learner, 
-                n_meta_train=n_meta_train)
+                n_meta_train=n_meta_train, repeat=repeat)
 
-            score_name = score_names[d]
+            score_name = score_names[d] if d in score_names else 'Performance'
 
             fig = plot_curve_with_error_bars(curves[0], curves[1], 
                 label='meta-train')
@@ -159,14 +205,40 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100):
                 label='meta-valid')
             fig = plot_curve_with_error_bars(curves[4], curves[5], fig=fig, 
                 label='meta-test')
+
             plt.xlabel("Number of tasks used for meta-training " +
                 "(|Dtr|={}, |Dte|={})".format(n_meta_train, n_meta_test))
             plt.ylabel("Average {} score".format(score_name))
             plt.legend()
             plt.title("{} - {} VS #tasks".format(d, score_name))
-            plt.show()
             save_fig(fig, name_expe=name_expe, 
                 filename="{}-alc-vs-n_tasks.jpg".format(d))
+            
+            # Use another figure
+            fig2 = plt.figure()
+            ax = fig2.add_subplot(1, 1, 1)
+
+            # Meta-train - meta-test
+            diff_curve = curves[0] - curves[4]
+            ax.plot(np.arange(n_meta_train) + 1, diff_curve,
+                label='meta-train - meta-test', marker='o', markersize=2)
+
+            # Theoretical bounds
+            n_T = n_meta_train
+            n_B = len(da_matrix.algos)
+            error_bars_the = [get_theoretical_error_bar(i, n_B, delta=0.05) 
+                                for i in range(1, n_T + 1)]
+            ax.plot(np.arange(n_T) + 1, error_bars_the,
+                label='Theoretical error bar', marker='o', markersize=2)
+            
+            plt.xlabel("Number of tasks used for meta-training " +
+                "(|Dtr|={}, |Dte|={})".format(n_meta_train, n_meta_test))
+            plt.ylabel("Average {} score".format(score_name))
+            plt.legend()
+            plt.title("{} - {} diff VS #tasks".format(d, score_name))
+            plt.show()
+            save_fig(fig2, name_expe=name_expe, 
+                filename="{}-alc-diff-vs-n_tasks.jpg".format(d))
 
 
 #################################
@@ -240,8 +312,9 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
     return mean_tr, std_tr, mean_te, std_te
 
 
-def plot_score_vs_n_algos_with_error_bars(repeat=100):
-    datasets_dir = "../datasets"
+def plot_score_vs_n_algos_with_error_bars(repeat=100,
+        datasets_dir="../datasets", 
+        dataset_names=None):
 
     score_names = {
         'artificial_r50c20r20': 'Performance',
@@ -251,8 +324,12 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100):
         'Statlog': 'Error rate',
     }
     
-    for d in os.listdir(datasets_dir):
-        # if d == 'AutoDL':
+    if dataset_names is None:
+        ds = os.listdir(datasets_dir)
+    else:
+        ds = [d for d in os.listdir(datasets_dir) if d in set(dataset_names)]
+    
+    for d in ds:
         if True:
             dataset_dir = os.path.join(datasets_dir, d)
             if os.path.isdir(dataset_dir):
@@ -270,17 +347,25 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100):
                 curves = get_meta_scores_vs_n_algos(da_matrix, meta_learner, 
                     n_meta_train=n_meta_train, repeat=repeat)
 
-                score_name = score_names[d]
+                score_name = score_names[d] if d in score_names else 'Performance'
                 total_n_algos = len(da_matrix.algos)
 
                 fig = plot_curve_with_error_bars(curves[0], curves[1], 
                     label='meta-train', marker='o', markersize=2)
                 fig = plot_curve_with_error_bars(curves[2], curves[3], fig=fig, 
                     label='meta-test', marker='o', markersize=2)
-                
+                plt.legend()
+                plt.xlabel("Number of algos " +
+                    "(|Dtr|={}, |Dte|={}, ".format(n_meta_train, n_meta_test) +
+                    "total #algos={})".format(total_n_algos))
+                plt.ylabel("Average {} score".format(score_name))
+
+                # Use another figure
+                fig2 = plt.figure()
+                ax = fig2.add_subplot(1, 1, 1)
+
                 # Meta-train - meta-test
                 diff_curve = curves[0] - curves[2]
-                ax = fig.axes[0]
                 ax.plot(np.arange(total_n_algos) + 1, diff_curve,
                     label='meta-train - meta-test', marker='o', markersize=2)
 
@@ -292,12 +377,19 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100):
                 ax.plot(np.arange(n_B) + 1, error_bars_the,
                     label='Theoretical error bar', marker='o', markersize=2)
 
+                if d == 'OpenML-Alors':
+                    plt.xscale('log')
+
                 plt.xlabel("Number of algos " +
                     "(|Dtr|={}, |Dte|={}, ".format(n_meta_train, n_meta_test) +
                     "total #algos={})".format(total_n_algos))
                 plt.ylabel("Average {} score".format(score_name))
+                # Title
+                fig.axes[0].set_title("{} - {} VS #algos".format(d, score_name))
+                fig2.axes[0].set_title("{} - {} diff VS #algos".format(d, score_name))
                 plt.legend()
-                plt.title("{} - {} VS #algos".format(d, score_name))
                 plt.show()
                 save_fig(fig, name_expe=name_expe, 
                     filename="{}-alc-vs-n_algos.jpg".format(d))
+                save_fig(fig2, name_expe=name_expe, 
+                    filename="{}-alc-diff-vs-n_algos.jpg".format(d))
