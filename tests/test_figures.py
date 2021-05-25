@@ -6,6 +6,7 @@ from mlt.data import get_da_matrix_from_real_dataset_dir
 from mlt.figures import plot_score_vs_n_tasks_with_error_bars
 from mlt.figures import plot_score_vs_n_algos_with_error_bars
 from mlt.figures import inspect_da_matrix
+from mlt.figures import plot_all_figures
 
 import os
 
@@ -27,7 +28,13 @@ def test_inspect_da_matrix():
             inspect_da_matrix(da_matrix)
 
 
+def test_plot_all_figures():
+    dataset_names = ['URV', 'OpenML']
+    plot_all_figures(dataset_names=dataset_names)
+
+
 if __name__ == '__main__':
     # test_plot_score_vs_n_tasks_with_error_bars()
     # test_plot_score_vs_n_algos_with_error_bars()
-    test_inspect_da_matrix()
+    # test_inspect_da_matrix()
+    test_plot_all_figures()

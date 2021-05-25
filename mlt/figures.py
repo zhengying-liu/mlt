@@ -41,7 +41,7 @@ def plot_curve_with_error_bars(li_mean, li_std, fig=None, label=None, **kwargs):
     return fig
 
 
-def inspect_da_matrix(da_matrix, results_dir="../results"):
+def inspect_da_matrix(da_matrix, results_dir="../results", save=True):
     perfs = np.array(da_matrix.perfs)
     li_mean = np.mean(perfs, axis=0)
     li_std = np.std(perfs, axis=0)
@@ -54,16 +54,28 @@ def inspect_da_matrix(da_matrix, results_dir="../results"):
     assert n_algos == perfs.shape[1]
     title = "{} (n_datasets={}, n_algos={})".format(name, n_datasets, n_algos) 
     plt.title(title)
+    if save:
+        filename = "mean-std-algos-{}".format(name)
+        save_fig(fig, results_dir=results_dir, filename=filename)
 
     heatmap = sns.clustermap(perfs)
     heatmap.fig.suptitle(name)
-    heatmap.fig.savefig(os.path.join(results_dir, name))
+    if save:
+        heatmap.fig.savefig(os.path.join(results_dir, name))
 
     cov = np.corrcoef(perfs.T)
     hm_cov = sns.clustermap(cov)
-    title = name + " covariance"
+    title = name + " algos correlation"
     hm_cov.fig.suptitle(title)
-    hm_cov.fig.savefig(os.path.join(results_dir, title))
+    if save:
+        hm_cov.fig.savefig(os.path.join(results_dir, title))
+
+    cov = np.corrcoef(perfs)
+    hm_cov = sns.clustermap(cov)
+    title = name + " tasks correlation"
+    hm_cov.fig.suptitle(title)
+    if save:
+        hm_cov.fig.savefig(os.path.join(results_dir, title))
 
     plt.show()
 
@@ -217,6 +229,7 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100,
             # Use another figure
             fig2 = plt.figure()
             ax = fig2.add_subplot(1, 1, 1)
+            ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
 
             # Meta-train - meta-test
             diff_curve = curves[0] - curves[4]
@@ -363,6 +376,7 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
                 # Use another figure
                 fig2 = plt.figure()
                 ax = fig2.add_subplot(1, 1, 1)
+                ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
 
                 # Meta-train - meta-test
                 diff_curve = curves[0] - curves[2]
@@ -393,3 +407,13 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
                     filename="{}-alc-vs-n_algos.jpg".format(d))
                 save_fig(fig2, name_expe=name_expe, 
                     filename="{}-alc-diff-vs-n_algos.jpg".format(d))
+
+
+def plot_all_figures(repeat=100, datasets_dir="../datasets", 
+        dataset_names=None):
+    plot_score_vs_n_algos_with_error_bars(repeat=repeat,
+        datasets_dir=datasets_dir, 
+        dataset_names=dataset_names)
+    plot_score_vs_n_tasks_with_error_bars(repeat=repeat,
+        datasets_dir=datasets_dir, 
+        dataset_names=dataset_names)
