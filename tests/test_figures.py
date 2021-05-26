@@ -29,8 +29,10 @@ def test_inspect_da_matrix():
 
 
 def test_plot_all_figures():
-    dataset_names = ['URV', 'OpenML']
-    plot_all_figures(dataset_names=dataset_names)
+    # dataset_names = ['URV', 'OpenML', 'URV-unnorm']
+    # dataset_names = None
+    dataset_names = ['URV-2000']
+    plot_all_figures(dataset_names=dataset_names, log_scale=True)
 
 
 if __name__ == '__main__':

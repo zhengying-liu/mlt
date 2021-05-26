@@ -15,7 +15,7 @@ import numpy as np
 import os
 
 
-def plot_curve_with_error_bars(li_mean, li_std, fig=None, label=None, **kwargs):
+def plot_curve_with_error_bars(li_mean, li_std, fig=None, label=None, xs=None, **kwargs):
     if fig is None:
         fig = plt.figure()
 
@@ -32,7 +32,10 @@ def plot_curve_with_error_bars(li_mean, li_std, fig=None, label=None, **kwargs):
     upper = a_mean + a_std
     lower = a_mean - a_std
 
-    X = np.arange(len(li_mean)) + 1
+    if xs is None:
+        X = np.arange(len(li_mean)) + 1
+    else:
+        X = xs
     
     ax.plot(X, li_mean, label=label, **kwargs)
 
@@ -87,7 +90,7 @@ def inspect_da_matrix(da_matrix, results_dir="../results", save=True):
 ############################
 def get_meta_scores_vs_n_tasks(da_matrix, meta_learner, 
                                n_meta_train=5,
-                               repeat=100):
+                               repeat=100, max_ticks=50):
     """Get meta-scores (meta-train, meta-valid, meta-test) vs number of tasks
     in the meta-training set. This gives a sort of (meta-)learning curves.
 
@@ -119,7 +122,10 @@ def get_meta_scores_vs_n_tasks(da_matrix, meta_learner,
     mean_te = []
     std_te = []
 
-    for t in range(1, T + 1):
+    step_size = max(1, T // max_ticks)
+    ticks = range(1, T + 1, step_size)
+
+    for t in ticks:
         s_tr = []
         s_va = []
         s_te = []
@@ -162,12 +168,12 @@ def get_meta_scores_vs_n_tasks(da_matrix, meta_learner,
     mean_te = np.array(mean_te)
     std_te = np.array(std_te)
 
-    return mean_tr, std_tr, mean_va, std_va, mean_te, std_te
+    return mean_tr, std_tr, mean_va, std_va, mean_te, std_te, ticks
 
 
 def plot_score_vs_n_tasks_with_error_bars(repeat=100, 
         datasets_dir="../datasets", 
-        dataset_names=None):
+        dataset_names=None, log_scale=True):
     """
     Args:
       repeat: int, number of repetitions for sampling 
@@ -208,19 +214,23 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100,
 
             curves = get_meta_scores_vs_n_tasks(da_matrix, meta_learner, 
                 n_meta_train=n_meta_train, repeat=repeat)
+            ticks = curves[6]
 
             score_name = score_names[d] if d in score_names else 'Performance'
 
-            fig = plot_curve_with_error_bars(curves[0], curves[1], 
+            fig = plot_curve_with_error_bars(curves[0], curves[1], xs=ticks,
                 label='meta-train')
-            fig = plot_curve_with_error_bars(curves[2], curves[3], fig=fig, 
+            fig = plot_curve_with_error_bars(curves[2], curves[3], fig=fig, xs=ticks,
                 label='meta-valid')
-            fig = plot_curve_with_error_bars(curves[4], curves[5], fig=fig, 
+            fig = plot_curve_with_error_bars(curves[4], curves[5], fig=fig, xs=ticks,
                 label='meta-test')
 
             plt.xlabel("Number of tasks used for meta-training " +
                 "(|Dtr|={}, |Dte|={})".format(n_meta_train, n_meta_test))
             plt.ylabel("Average {} score".format(score_name))
+            if log_scale:
+                plt.xscale('log')
+                plt.yscale('log')
             plt.legend()
             plt.title("{} - {} VS #tasks".format(d, score_name))
             save_fig(fig, name_expe=name_expe, 
@@ -233,20 +243,23 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100,
 
             # Meta-train - meta-test
             diff_curve = curves[0] - curves[4]
-            ax.plot(np.arange(n_meta_train) + 1, diff_curve,
+            ax.plot(ticks, diff_curve,
                 label='meta-train - meta-test', marker='o', markersize=2)
 
             # Theoretical bounds
             n_T = n_meta_train
             n_B = len(da_matrix.algos)
             error_bars_the = [get_theoretical_error_bar(i, n_B, delta=0.05) 
-                                for i in range(1, n_T + 1)]
-            ax.plot(np.arange(n_T) + 1, error_bars_the,
+                                for i in ticks]
+            ax.plot(ticks, error_bars_the,
                 label='Theoretical error bar', marker='o', markersize=2)
             
             plt.xlabel("Number of tasks used for meta-training " +
                 "(|Dtr|={}, |Dte|={})".format(n_meta_train, n_meta_test))
             plt.ylabel("Average {} score".format(score_name))
+            if log_scale:
+                plt.xscale('log')
+                plt.yscale('log')
             plt.legend()
             plt.title("{} - {} diff VS #tasks".format(d, score_name))
             plt.show()
@@ -259,7 +272,7 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100,
 #################################
 def get_meta_scores_vs_n_algos(da_matrix, meta_learner, 
                                n_meta_train=5,
-                               repeat=100):
+                               repeat=100, max_ticks=50):
     """Get meta-scores (meta-train, meta-valid, meta-test) vs number of 
     algorithms in the meta-training set. This gives (meta-)learning curves.
 
@@ -292,7 +305,10 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
     mean_te = []
     std_te = []
 
-    for a in range(1, A + 1):
+    step_size = max(1, A // max_ticks)
+    ticks = range(1, A + 1, step_size)
+
+    for a in ticks:
         s_tr = []
         s_te = []
         for _ in range(repeat):
@@ -322,12 +338,12 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
     mean_te = np.array(mean_te)
     std_te = np.array(std_te)
 
-    return mean_tr, std_tr, mean_te, std_te
+    return mean_tr, std_tr, mean_te, std_te, ticks
 
 
 def plot_score_vs_n_algos_with_error_bars(repeat=100,
         datasets_dir="../datasets", 
-        dataset_names=None):
+        dataset_names=None, log_scale=True, max_ticks=50):
 
     score_names = {
         'artificial_r50c20r20': 'Performance',
@@ -358,20 +374,25 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
                 n_meta_test = da_matrix.perfs.shape[0] - n_meta_train
 
                 curves = get_meta_scores_vs_n_algos(da_matrix, meta_learner, 
-                    n_meta_train=n_meta_train, repeat=repeat)
+                    n_meta_train=n_meta_train, repeat=repeat, 
+                    max_ticks=max_ticks)
+                ticks = curves[4]
 
                 score_name = score_names[d] if d in score_names else 'Performance'
                 total_n_algos = len(da_matrix.algos)
 
-                fig = plot_curve_with_error_bars(curves[0], curves[1], 
+                fig = plot_curve_with_error_bars(curves[0], curves[1], xs=ticks,
                     label='meta-train', marker='o', markersize=2)
-                fig = plot_curve_with_error_bars(curves[2], curves[3], fig=fig, 
+                fig = plot_curve_with_error_bars(curves[2], curves[3], fig=fig, xs=ticks,
                     label='meta-test', marker='o', markersize=2)
                 plt.legend()
                 plt.xlabel("Number of algos " +
                     "(|Dtr|={}, |Dte|={}, ".format(n_meta_train, n_meta_test) +
                     "total #algos={})".format(total_n_algos))
                 plt.ylabel("Average {} score".format(score_name))
+                if log_scale:
+                    plt.xscale('log')
+                    plt.yscale('log')
 
                 # Use another figure
                 fig2 = plt.figure()
@@ -380,15 +401,15 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
 
                 # Meta-train - meta-test
                 diff_curve = curves[0] - curves[2]
-                ax.plot(np.arange(total_n_algos) + 1, diff_curve,
+                ax.plot(ticks, diff_curve,
                     label='meta-train - meta-test', marker='o', markersize=2)
 
                 # Theoretical bounds
                 n_T = n_meta_train
                 n_B = total_n_algos
                 error_bars_the = [get_theoretical_error_bar(n_T, i, delta=0.05) 
-                                  for i in range(1, n_B + 1)]
-                ax.plot(np.arange(n_B) + 1, error_bars_the,
+                                  for i in ticks]
+                ax.plot(ticks, error_bars_the,
                     label='Theoretical error bar', marker='o', markersize=2)
 
                 if d == 'OpenML-Alors':
@@ -398,6 +419,9 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
                     "(|Dtr|={}, |Dte|={}, ".format(n_meta_train, n_meta_test) +
                     "total #algos={})".format(total_n_algos))
                 plt.ylabel("Average {} score".format(score_name))
+                if log_scale:
+                    plt.xscale('log')
+                    plt.yscale('log')
                 # Title
                 fig.axes[0].set_title("{} - {} VS #algos".format(d, score_name))
                 fig2.axes[0].set_title("{} - {} diff VS #algos".format(d, score_name))
@@ -410,10 +434,10 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
 
 
 def plot_all_figures(repeat=100, datasets_dir="../datasets", 
-        dataset_names=None):
+        dataset_names=None, log_scale=False):
     plot_score_vs_n_algos_with_error_bars(repeat=repeat,
         datasets_dir=datasets_dir, 
-        dataset_names=dataset_names)
+        dataset_names=dataset_names, log_scale=log_scale)
     plot_score_vs_n_tasks_with_error_bars(repeat=repeat,
         datasets_dir=datasets_dir, 
-        dataset_names=dataset_names)
+        dataset_names=dataset_names, log_scale=log_scale)

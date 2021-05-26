@@ -715,8 +715,8 @@ def to_df_for_cd_diagram(da_matrix):
 
     for i_d in range(len(datasets)):
         for i_a in range(len(algos)):
-            classifier_names.append(algos[i_a])
-            dataset_names.append(datasets[i_d])
+            classifier_names.append(algos[i_a].name)
+            dataset_names.append(datasets[i_d].name)
             accuracies.append(da_matrix.perfs[i_d, i_a])
 
     df = pd.DataFrame({

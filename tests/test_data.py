@@ -12,6 +12,7 @@ from mlt.data import URVDAMatrix
 from mlt.data import download_autodl_data, parse_autodl_data
 from mlt.data import plot_error_bars_empirical_vs_theoretical
 from mlt.data import to_df_for_cd_diagram
+from mlt.data import get_da_matrix_from_real_dataset_dir
 
 from mlt.figures import inspect_da_matrix
 
@@ -50,9 +51,13 @@ def test_plot_error_bars_empirical_vs_theoretical():
 
 
 def test_to_df_for_cd_diagram():
-    da_matrix = parse_autodl_data()
+    # da_matrix = parse_autodl_data()
+    # df = to_df_for_cd_diagram(da_matrix)
+    # df.to_csv('autodl.csv', index=False)
+
+    da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir='../datasets/OpenML-Alors')
     df = to_df_for_cd_diagram(da_matrix)
-    df.to_csv('autodl.csv', index=False)
+    df.to_csv('openml.csv', index=False)
 
 
 def test_BetaDistributionDAMatrix():
@@ -103,7 +108,7 @@ def test_TransposeDirichletDistributionDAMatrix():
 
 
 def test_URVDAMatrix():
-    da_matrix = URVDAMatrix(normalized=True)
+    da_matrix = URVDAMatrix(n_datasets=2000, n_algos=2000, normalized=True, name='URV-2000')
     da_matrix.save()
     inspect_da_matrix(da_matrix)
 
