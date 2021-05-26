@@ -32,7 +32,7 @@ def test_plot_all_figures():
     # dataset_names = ['URV', 'OpenML', 'URV-unnorm']
     # dataset_names = None
     dataset_names = ['URV-2000']
-    plot_all_figures(dataset_names=dataset_names, log_scale=True)
+    plot_all_figures(dataset_names=dataset_names, log_scale=False, max_ticks=2)
 
 
 if __name__ == '__main__':

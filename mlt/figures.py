@@ -173,15 +173,18 @@ def get_meta_scores_vs_n_tasks(da_matrix, meta_learner,
 
 def plot_score_vs_n_tasks_with_error_bars(repeat=100, 
         datasets_dir="../datasets", 
-        dataset_names=None, log_scale=True):
+        dataset_names=None, log_scale=False, save=False, max_ticks=50):
     """
     Args:
-      repeat: int, number of repetitions for sampling 
+      repeat: int, number of repetitions for sampling meta-training examples
       datasets_dir: str, path to directory containing all (meta-)datasets
       dataset_names: list of str, list of dataset names to carry out the plot
+      log_scale: boolean. If True, x-axis and y-axis will be in log-scale
+      save: boolean. If True, figures will be saved
+      max_ticks: int, maximum number of ticks/points for the plot
 
     Returns:
-      Saves several figures.
+      Plots or saves several figures.
     """
 
     score_names = {
@@ -213,7 +216,7 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100,
             n_meta_test = da_matrix.perfs.shape[0] - n_meta_train
 
             curves = get_meta_scores_vs_n_tasks(da_matrix, meta_learner, 
-                n_meta_train=n_meta_train, repeat=repeat)
+                n_meta_train=n_meta_train, repeat=repeat, max_ticks=max_ticks)
             ticks = curves[6]
 
             score_name = score_names[d] if d in score_names else 'Performance'
@@ -233,8 +236,9 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100,
                 plt.yscale('log')
             plt.legend()
             plt.title("{} - {} VS #tasks".format(d, score_name))
-            save_fig(fig, name_expe=name_expe, 
-                filename="{}-alc-vs-n_tasks.jpg".format(d))
+            if save:
+                save_fig(fig, name_expe=name_expe, 
+                    filename="{}-alc-vs-n_tasks.jpg".format(d))
             
             # Use another figure
             fig2 = plt.figure()
@@ -263,8 +267,9 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100,
             plt.legend()
             plt.title("{} - {} diff VS #tasks".format(d, score_name))
             plt.show()
-            save_fig(fig2, name_expe=name_expe, 
-                filename="{}-alc-diff-vs-n_tasks.jpg".format(d))
+            if save:
+                save_fig(fig2, name_expe=name_expe, 
+                    filename="{}-alc-diff-vs-n_tasks.jpg".format(d))
 
 
 #################################
@@ -343,7 +348,19 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
 
 def plot_score_vs_n_algos_with_error_bars(repeat=100,
         datasets_dir="../datasets", 
-        dataset_names=None, log_scale=True, max_ticks=50):
+        dataset_names=None, log_scale=False, save=False, max_ticks=50):
+    """
+    Args:
+      repeat: int, number of repetitions for sampling meta-training examples
+      datasets_dir: str, path to directory containing all (meta-)datasets
+      dataset_names: list of str, list of dataset names to carry out the plot
+      log_scale: boolean. If True, x-axis and y-axis will be in log-scale
+      save: boolean. If True, figures will be saved
+      max_ticks: int, maximum number of ticks/points for the plot
+
+    Returns:
+      Plots or saves several figures.
+    """
 
     score_names = {
         'artificial_r50c20r20': 'Performance',
@@ -427,17 +444,20 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
                 fig2.axes[0].set_title("{} - {} diff VS #algos".format(d, score_name))
                 plt.legend()
                 plt.show()
-                save_fig(fig, name_expe=name_expe, 
-                    filename="{}-alc-vs-n_algos.jpg".format(d))
-                save_fig(fig2, name_expe=name_expe, 
-                    filename="{}-alc-diff-vs-n_algos.jpg".format(d))
+                if save:
+                    save_fig(fig, name_expe=name_expe, 
+                        filename="{}-alc-vs-n_algos.jpg".format(d))
+                    save_fig(fig2, name_expe=name_expe, 
+                        filename="{}-alc-diff-vs-n_algos.jpg".format(d))
 
 
 def plot_all_figures(repeat=100, datasets_dir="../datasets", 
-        dataset_names=None, log_scale=False):
+        dataset_names=None, log_scale=False, save=True, max_ticks=50):
     plot_score_vs_n_algos_with_error_bars(repeat=repeat,
         datasets_dir=datasets_dir, 
-        dataset_names=dataset_names, log_scale=log_scale)
+        dataset_names=dataset_names, log_scale=log_scale, 
+        save=save, max_ticks=max_ticks)
     plot_score_vs_n_tasks_with_error_bars(repeat=repeat,
         datasets_dir=datasets_dir, 
-        dataset_names=dataset_names, log_scale=log_scale)
+        dataset_names=dataset_names, log_scale=log_scale,
+        save=save, max_ticks=max_ticks)
