@@ -2,6 +2,7 @@
 # Creation date: 4 Dec 2020
 
 from mlt.utils import download_file_from_google_drive
+from scipy.stats import ortho_group
 
 import ast
 import json
@@ -432,7 +433,8 @@ class DirichletDistributionDAMatrix(DAMatrix):
     def __init__(self, alpha, n_datasets=2000, name="DirichletDist"):
         """
         Args:
-          alpha: list of floats, the parameters of the Dirichlet distribution
+          alpha: list of floats, the parameters of the Dirichlet distribution.
+            Has `n_algos` as length.
           n_datasets: int, number of datasets (i.e. rows) in the DA matrix
           name: str, name of the DA matrix
         """
@@ -450,7 +452,8 @@ class TransposeDirichletDistributionDAMatrix(DAMatrix):
     def __init__(self, alpha, n_algos=20, name="TransDirichletDist"):
         """
         Args:
-          alpha: list of floats, the parameters of the Dirichlet distribution
+          alpha: list of floats, the parameters of the Dirichlet distribution.
+            Has `n_datasets` aas length.
           n_algos: int, number of algorithms (i.e. columns) in the DA matrix
           name: str, name of the DA matrix
         """
@@ -489,6 +492,46 @@ class URVDAMatrix(DAMatrix):
             V = np.random.randn(rank, n_algos)
 
         perfs = U.dot(R).dot(V)
+
+        if normalized:
+            perfs = 1 / (1 + np.exp(-perfs))
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
+
+        super().__init__(perfs=perfs, datasets=datasets, algos=algos, name=name)
+
+
+class USVDAMatrix(DAMatrix):
+
+    def __init__(self, tau=0.1, n_datasets=200, n_algos=20, U=None, V=None,
+                 name="USV", normalized=True):
+        """Performance matrix of the form USV where S is a diagonal matrix. The
+        i-th entry of S is exp(- i * tau).
+        U and V should be orthogonal matrix.
+        If `normalized`, a standard logistic function
+        (1 / (1 + e^(-x)) is applied to all entries in the end.
+
+        Args:
+          tau: float, the i-th entry of S is exp(- i * tau)
+          n_datasets: int, number of datasets (i.e. rows) in the DA matrix
+          n_algos: int, number of algorithms (i.e. columns) in the DA matrix
+          U: NumPy array of shape (n_datasets, rank)
+          V: NumPy array of shape (rank, n_algos)
+          name: str, name of the DA matrix
+          normalized: 
+        """
+        rank = min(n_datasets, n_algos)
+
+        if U is None:
+            U = ortho_group.rvs(n_datasets)[:, :rank]
+        
+        if V is None:
+            V = ortho_group.rvs(n_algos)[:rank, :]
+
+        v = np.exp(-tau * np.arange(rank))
+        S = np.diag(v)
+
+        perfs = U.dot(S).dot(V)
 
         if normalized:
             perfs = 1 / (1 + np.exp(-perfs))

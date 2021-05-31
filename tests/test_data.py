@@ -8,6 +8,7 @@ from mlt.data import BinarizedMultivariateGaussianDAMatrix
 from mlt.data import DepUDirichletDistributionDAMatrix
 from mlt.data import TransposeDirichletDistributionDAMatrix
 from mlt.data import URVDAMatrix
+from mlt.data import USVDAMatrix
 
 from mlt.data import download_autodl_data, parse_autodl_data
 from mlt.data import plot_error_bars_empirical_vs_theoretical
@@ -113,6 +114,12 @@ def test_URVDAMatrix():
     inspect_da_matrix(da_matrix)
 
 
+def test_USVDAMatrix():
+    da_matrix = URVDAMatrix(n_datasets=200, n_algos=20, normalized=True, name='USV-0_1-200-20')
+    da_matrix.save()
+    inspect_da_matrix(da_matrix)
+
+
 if __name__ == '__main__':
     # test_nfldamatrix()
     # test_binarized_mg()
@@ -126,4 +133,5 @@ if __name__ == '__main__':
     # test_DirichletDistributionDAMatrix()
     # test_DepUDirichletDistributionDAMatrix()
     # test_TransposeDirichletDistributionDAMatrix()
-    test_URVDAMatrix()
+    # test_URVDAMatrix()
+    test_USVDAMatrix()

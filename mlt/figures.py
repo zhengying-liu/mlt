@@ -174,7 +174,8 @@ def get_meta_scores_vs_n_tasks(da_matrix, meta_learner,
 
 def plot_score_vs_n_tasks_with_error_bars(repeat=100, 
         datasets_dir="../datasets", 
-        dataset_names=None, log_scale=False, save=False, max_ticks=50):
+        dataset_names=None, log_scale=False, save=False, max_ticks=50, 
+        shuffling=False, **kwargs):
     """
     Args:
       repeat: int, number of repetitions for sampling meta-training examples
@@ -183,6 +184,7 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100,
       log_scale: boolean. If True, x-axis and y-axis will be in log-scale
       save: boolean. If True, figures will be saved
       max_ticks: int, maximum number of ticks/points for the plot
+      shuffling: boolean, whether with shuffling for (meta-)train-test split
 
     Returns:
       Plots or saves several figures.
@@ -217,7 +219,8 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100,
             n_meta_test = da_matrix.perfs.shape[0] - n_meta_train
 
             curves = get_meta_scores_vs_n_tasks(da_matrix, meta_learner, 
-                n_meta_train=n_meta_train, repeat=repeat, max_ticks=max_ticks)
+                n_meta_train=n_meta_train, repeat=repeat, max_ticks=max_ticks,
+                shuffling=shuffling, **kwargs)
             ticks = curves[6]
 
             score_name = score_names[d] if d in score_names else 'Performance'
@@ -278,7 +281,8 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100,
 #################################
 def get_meta_scores_vs_n_algos(da_matrix, meta_learner, 
                                n_meta_train=5,
-                               repeat=100, max_ticks=50, shuffling=True):
+                               repeat=100, max_ticks=50, shuffling=True, 
+                               nested=False):
     """Get meta-scores (meta-train, meta-valid, meta-test) vs number of 
     algorithms in the meta-training set. This gives (meta-)learning curves.
 
@@ -310,7 +314,7 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
     step_size = max(1, A // max_ticks)
     ticks = range(1, A + 1, step_size)
 
-    for a in ticks:
+    for idx, a in enumerate(ticks):
         s_tr = []
         s_te = []
         for _ in range(repeat):
@@ -321,6 +325,8 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
 
             # Choose a among A algorithms for meta-train, without replacement
             indices_algos = np.random.choice(A, a, replace=False)
+            if nested:
+                indices_algos = list(range(idx + 1))
             da_algo_train = da_meta_train.get_algo_subset(indices_algos)
             da_algo_test = da_meta_test.get_algo_subset(indices_algos)
 
@@ -350,7 +356,8 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
 
 def plot_score_vs_n_algos_with_error_bars(repeat=100,
         datasets_dir="../datasets", 
-        dataset_names=None, log_scale=False, save=False, max_ticks=50):
+        dataset_names=None, log_scale=False, save=False, max_ticks=50,
+        shuffling=False, **kwargs):
     """
     Args:
       repeat: int, number of repetitions for sampling meta-training examples
@@ -359,6 +366,7 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
       log_scale: boolean. If True, x-axis and y-axis will be in log-scale
       save: boolean. If True, figures will be saved
       max_ticks: int, maximum number of ticks/points for the plot
+      shuffling: boolean, whether with shuffling for (meta-)train-test split
 
     Returns:
       Plots or saves several figures.
@@ -394,7 +402,9 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
 
                 curves = get_meta_scores_vs_n_algos(da_matrix, meta_learner, 
                     n_meta_train=n_meta_train, repeat=repeat, 
-                    max_ticks=max_ticks)
+                    max_ticks=max_ticks,
+                    shuffling=shuffling,
+                    **kwargs)
                 ticks = curves[4]
 
                 score_name = score_names[d] if d in score_names else 'Performance'
@@ -454,12 +464,18 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
 
 
 def plot_all_figures(repeat=100, datasets_dir="../datasets", 
-        dataset_names=None, log_scale=False, save=True, max_ticks=50):
+        dataset_names=None, log_scale=False, save=True, max_ticks=50, 
+        shuffling=False, **kwargs):
     plot_score_vs_n_algos_with_error_bars(repeat=repeat,
         datasets_dir=datasets_dir, 
         dataset_names=dataset_names, log_scale=log_scale, 
-        save=save, max_ticks=max_ticks)
+        save=save, max_ticks=max_ticks, shuffling=shuffling, **kwargs)
     plot_score_vs_n_tasks_with_error_bars(repeat=repeat,
         datasets_dir=datasets_dir, 
         dataset_names=dataset_names, log_scale=log_scale,
-        save=save, max_ticks=max_ticks)
+        save=save, max_ticks=max_ticks, shuffling=shuffling, **kwargs)
+
+
+#################################
+### Impact of effective rank ####
+#################################

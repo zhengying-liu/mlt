@@ -19,7 +19,7 @@ DATASETS_DIR = os.path.join(ROOT_DIR, os.pardir, 'datasets')
 
 def test_plot_score_vs_n_tasks_with_error_bars():
     rank = 10
-    n_datasets = 200
+    n_datasets = 2000
     n_algos = 20
     name = "URV-{}-{}-{}".format(rank, n_datasets, n_algos)
     datasets_dir = os.path.join(ROOT_DIR, os.pardir, 'datasets')
@@ -35,7 +35,7 @@ def test_plot_score_vs_n_tasks_with_error_bars():
     plot_score_vs_n_tasks_with_error_bars(
         datasets_dir=datasets_dir, 
         dataset_names=dataset_names,
-        repeat=100,
+        repeat=10,
         max_ticks=20)
 
 
@@ -57,8 +57,8 @@ def test_plot_score_vs_n_algos_with_error_bars():
     plot_score_vs_n_algos_with_error_bars(
         datasets_dir=datasets_dir, 
         dataset_names=dataset_names,
-        repeat=100,
-        max_ticks=20)
+        repeat=10,
+        max_ticks=20, shuffling=True, nested=False)
 
 
 def test_inspect_da_matrix():
@@ -73,12 +73,13 @@ def test_inspect_da_matrix():
 def test_plot_all_figures():
     # dataset_names = ['URV', 'OpenML', 'URV-unnorm']
     # dataset_names = None
-    dataset_names = ['URV-2000']
-    plot_all_figures(dataset_names=dataset_names, log_scale=False, max_ticks=2)
+    # dataset_names = ['URV-2000']
+    dataset_names = ['IndepBetaDist']
+    plot_all_figures(dataset_names=dataset_names, log_scale=False, max_ticks=50)
 
 
 if __name__ == '__main__':
-    test_plot_score_vs_n_tasks_with_error_bars()
-    # test_plot_score_vs_n_algos_with_error_bars()
+    # test_plot_score_vs_n_tasks_with_error_bars()
+    test_plot_score_vs_n_algos_with_error_bars()
     # test_inspect_da_matrix()
     # test_plot_all_figures()
