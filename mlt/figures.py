@@ -90,7 +90,7 @@ def inspect_da_matrix(da_matrix, results_dir="../results", save=True):
 ############################
 def get_meta_scores_vs_n_tasks(da_matrix, meta_learner, 
                                n_meta_train=5,
-                               repeat=100, max_ticks=50):
+                               repeat=100, max_ticks=50, shuffling=True):
     """Get meta-scores (meta-train, meta-valid, meta-test) vs number of tasks
     in the meta-training set. This gives a sort of (meta-)learning curves.
 
@@ -111,10 +111,6 @@ def get_meta_scores_vs_n_tasks(da_matrix, meta_learner,
                          "But got {} > {}.".format(n_meta_train, n_datasets))
     T = n_meta_train
 
-    da_meta_train, da_meta_test = da_matrix.train_test_split(
-        train_size=n_meta_train, shuffling=False
-    )
-
     mean_tr = []
     std_tr = []
     mean_va = []
@@ -130,6 +126,11 @@ def get_meta_scores_vs_n_tasks(da_matrix, meta_learner,
         s_va = []
         s_te = []
         for _ in range(repeat):
+            # (Meta-)train-test split done in each iteration
+            da_meta_train, da_meta_test = da_matrix.train_test_split(
+                train_size=n_meta_train, shuffling=shuffling
+            )
+
             # Choose t among T tasks for meta-train, without replacement
             valid_indices = set(np.random.choice(T, T - t, replace=False))
             meta_learner.meta_fit(da_meta_train, valid_indices)
@@ -277,7 +278,7 @@ def plot_score_vs_n_tasks_with_error_bars(repeat=100,
 #################################
 def get_meta_scores_vs_n_algos(da_matrix, meta_learner, 
                                n_meta_train=5,
-                               repeat=100, max_ticks=50):
+                               repeat=100, max_ticks=50, shuffling=True):
     """Get meta-scores (meta-train, meta-valid, meta-test) vs number of 
     algorithms in the meta-training set. This gives (meta-)learning curves.
 
@@ -301,10 +302,6 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
 
     A = len(da_matrix.algos)
 
-    da_meta_train, da_meta_test = da_matrix.train_test_split(
-        train_size=n_meta_train, shuffling=False
-    )
-
     mean_tr = []
     std_tr = []
     mean_te = []
@@ -317,6 +314,11 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
         s_tr = []
         s_te = []
         for _ in range(repeat):
+            # (Meta-)train-test split done in each iteration
+            da_meta_train, da_meta_test = da_matrix.train_test_split(
+                train_size=n_meta_train, shuffling=shuffling
+            )
+
             # Choose a among A algorithms for meta-train, without replacement
             indices_algos = np.random.choice(A, a, replace=False)
             da_algo_train = da_meta_train.get_algo_subset(indices_algos)
