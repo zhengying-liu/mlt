@@ -326,6 +326,7 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
             # Choose a among A algorithms for meta-train, without replacement
             indices_algos = np.random.choice(A, a, replace=False)
             if nested:
+                print("haha")
                 indices_algos = list(range(idx + 1))
             da_algo_train = da_meta_train.get_algo_subset(indices_algos)
             da_algo_test = da_meta_test.get_algo_subset(indices_algos)
@@ -396,7 +397,8 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
                 if d == 'AutoDL':
                     n_meta_train = 5
                 else:
-                    n_meta_train = da_matrix.perfs.shape[0] // 2
+                    # n_meta_train = da_matrix.perfs.shape[0] // 2
+                    n_meta_train = 5
                 
                 n_meta_test = da_matrix.perfs.shape[0] - n_meta_train
 

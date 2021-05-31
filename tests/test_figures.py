@@ -58,7 +58,7 @@ def test_plot_score_vs_n_algos_with_error_bars():
         datasets_dir=datasets_dir, 
         dataset_names=dataset_names,
         repeat=10,
-        max_ticks=20, shuffling=True, nested=False)
+        max_ticks=20, shuffling=True, nested=True)
 
 
 def test_inspect_da_matrix():
