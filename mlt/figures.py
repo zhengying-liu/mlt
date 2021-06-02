@@ -172,6 +172,117 @@ def get_meta_scores_vs_n_tasks(da_matrix, meta_learner,
     return mean_tr, std_tr, mean_va, std_va, mean_te, std_te, ticks
 
 
+def plot_score_vs_n_tasks_per_matrix(
+        da_matrix, 
+        meta_learner,
+        repeat=100,
+        log_scale=False, 
+        save=False, 
+        max_ticks=50,
+        n_meta_train=None,
+        name_expe="alc-vs-n_tasks",
+        score_name="Performance",
+        shuffling=False,
+        **kwargs):
+    """Given DA matrix `da_matrix` and meta-learn `meta_learner`, plot a score
+    vs n_tasks figure. 
+
+    Following procedures are adopted:
+    - Runs are repeated experiments for computing the mean and the std in each 
+      settings. The learning curves typically plot these mean and std;
+    - Random meta-train-test split (matrix -> meta-train reservoir, meta-test) 
+      was done once for all runs in the first version. If `shuffling`, 
+      we do it in each run;
+    - Random meta-train-valid split: a random subset of meta-train reservoir is 
+      used for real meta-training. The remaining tasks in the meta-train 
+      reservoir are used for meta-validation;
+    - Gamma-level algorithm: chooses only one (beta-)algorithm during 
+      meta-training. We choose the algorithm with best column mean (i.e. the 
+      algorithm with the highest mean performance over tasks in meta-train) 
+      among `n_algos` algorithms, which are chosen randomly.
+    - Meta-test: the chosen (beta-)algorithm during meta-training is used for 
+      meta-test, where the column mean of this algorithm among the meta-test 
+      set is used as final score. (Thus if the meta-test set is fixed, then the 
+      final scores only have a very finite set of possibilities);
+
+    Args:
+      da_matrix: `mlt.data.DAMatrix` object
+      meta_learner: `mlt.meta_learner.MetaLearner` object
+      repeat: int, number of repetitions for sampling meta-training examples
+      log_scale: boolean. If True, x-axis and y-axis will be in log-scale
+      save: boolean. If True, figures will be saved
+      max_ticks: int, maximum number of ticks/points for the plot
+      shuffling: boolean, whether with shuffling for (meta-)train-test split
+      n_meta_train: int, number of examples used for meta-training. If `None`,
+        half of the examples are used
+      name_expe: str, name of the experiment. Used for naming the resulting 
+        figures
+      score_name: str, name of the score. Used in the figures' title
+      kwargs: dict of other arguments
+    """
+    if n_meta_train is None:
+        n_meta_train = da_matrix.perfs.shape[0] // 2
+
+    n_meta_test = da_matrix.perfs.shape[0] - n_meta_train
+
+    curves = get_meta_scores_vs_n_tasks(da_matrix, meta_learner, 
+        n_meta_train=n_meta_train, repeat=repeat, max_ticks=max_ticks,
+        shuffling=shuffling, **kwargs)
+    ticks = curves[6]
+
+    fig = plot_curve_with_error_bars(curves[0], curves[1], xs=ticks,
+        label='meta-train')
+    fig = plot_curve_with_error_bars(curves[2], curves[3], fig=fig, xs=ticks,
+        label='meta-valid')
+    fig = plot_curve_with_error_bars(curves[4], curves[5], fig=fig, xs=ticks,
+        label='meta-test')
+
+    plt.xlabel("Number of tasks used for meta-training " +
+        "(|Dtr|={}, |Dte|={})".format(n_meta_train, n_meta_test))
+    plt.ylabel("Average {} score".format(score_name))
+    if log_scale:
+        plt.xscale('log')
+        plt.yscale('log')
+    plt.legend()
+
+    d = da_matrix.name
+    plt.title("{} - {} VS #tasks".format(d, score_name))
+    if save:
+        save_fig(fig, name_expe=name_expe, 
+            filename="{}-alc-vs-n_tasks.jpg".format(d))
+    
+    # Use another figure
+    fig2 = plt.figure()
+    ax = fig2.add_subplot(1, 1, 1)
+    ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+
+    # Meta-train - meta-test
+    diff_curve = curves[0] - curves[4]
+    ax.plot(ticks, diff_curve,
+        label='meta-train - meta-test', marker='o', markersize=2)
+
+    # Theoretical bounds
+    n_T = n_meta_train
+    n_B = len(da_matrix.algos)
+    error_bars_the = [get_theoretical_error_bar(i, n_B, delta=0.05) 
+                        for i in ticks]
+    ax.plot(ticks, error_bars_the,
+        label='Theoretical error bar', marker='o', markersize=2)
+    
+    plt.xlabel("Number of tasks used for meta-training " +
+        "(|Dtr|={}, |Dte|={})".format(n_meta_train, n_meta_test))
+    plt.ylabel("Average {} score".format(score_name))
+    if log_scale:
+        plt.xscale('log')
+        plt.yscale('log')
+    plt.legend()
+    plt.title("{} - {} diff VS #tasks".format(d, score_name))
+    plt.show()
+    if save:
+        save_fig(fig2, name_expe=name_expe, 
+            filename="{}-alc-diff-vs-n_tasks.jpg".format(d))
+
+
 def plot_score_vs_n_tasks_with_error_bars(repeat=100, 
         datasets_dir="../datasets", 
         dataset_names=None, log_scale=False, save=False, max_ticks=50, 
@@ -355,6 +466,121 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
     return mean_tr, std_tr, mean_te, std_te, ticks
 
 
+def plot_score_vs_n_algos_per_matrix(
+        da_matrix, 
+        meta_learner,
+        repeat=100,
+        log_scale=False, 
+        save=False, 
+        max_ticks=50,
+        n_meta_train=None,
+        name_expe="alc-vs-n_algos",
+        score_name="Performance",
+        shuffling=False,
+        **kwargs):
+    """Given DA matrix `da_matrix` and meta-learn `meta_learner`, plot a score
+    vs n_algos figure. 
+
+    Following procedures are adopted:
+    - Runs are repeated experiments for computing the mean and the std in each 
+      settings. The learning curves typically plot these mean and std;
+    - Random meta-train-test split (matrix -> meta-train reservoir, meta-test) 
+      was done once for all runs in the first version. If `shuffling`, 
+      we do it in each run;
+    - Random meta-train-valid split: a random subset of meta-train reservoir is 
+      used for real meta-training. The remaining tasks in the meta-train 
+      reservoir are used for meta-validation;
+    - Gamma-level algorithm: chooses only one (beta-)algorithm during 
+      meta-training. We choose the algorithm with best column mean (i.e. the 
+      algorithm with the highest mean performance over tasks in meta-train) 
+      among `n_algos` algorithms, which are chosen randomly.
+    - Meta-test: the chosen (beta-)algorithm during meta-training is used for 
+      meta-test, where the column mean of this algorithm among the meta-test 
+      set is used as final score. (Thus if the meta-test set is fixed, then the 
+      final scores only have a very finite set of possibilities);
+
+    Args:
+      da_matrix: `mlt.data.DAMatrix` object
+      meta_learner: `mlt.meta_learner.MetaLearner` object
+      repeat: int, number of repetitions for sampling meta-training examples
+      log_scale: boolean. If True, x-axis and y-axis will be in log-scale
+      save: boolean. If True, figures will be saved
+      max_ticks: int, maximum number of ticks/points for the plot
+      shuffling: boolean, whether with shuffling for (meta-)train-test split
+      n_meta_train: int, number of examples used for meta-training. If `None`,
+        half of the examples are used
+      name_expe: str, name of the experiment. Used for naming the resulting 
+        figures
+      score_name: str, name of the score. Used in the figures' title
+      kwargs: dict of other arguments
+    """
+    if n_meta_train is None:
+        n_meta_train = da_matrix.perfs.shape[0] // 2
+
+    n_meta_test = da_matrix.perfs.shape[0] - n_meta_train
+
+    curves = get_meta_scores_vs_n_algos(da_matrix, meta_learner, 
+        n_meta_train=n_meta_train, repeat=repeat, 
+        max_ticks=max_ticks,
+        shuffling=shuffling,
+        **kwargs)
+    ticks = curves[4]
+
+    total_n_algos = len(da_matrix.algos)
+
+    fig = plot_curve_with_error_bars(curves[0], curves[1], xs=ticks,
+        label='meta-train', marker='o', markersize=2)
+    fig = plot_curve_with_error_bars(curves[2], curves[3], fig=fig, xs=ticks,
+        label='meta-test', marker='o', markersize=2)
+    plt.legend()
+    plt.xlabel("Number of algos " +
+        "(|Dtr|={}, |Dte|={}, ".format(n_meta_train, n_meta_test) +
+        "total #algos={})".format(total_n_algos))
+    plt.ylabel("Average {} score".format(score_name))
+    if log_scale:
+        plt.xscale('log')
+        plt.yscale('log')
+
+    # Use another figure
+    fig2 = plt.figure()
+    ax = fig2.add_subplot(1, 1, 1)
+    ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+
+    # Meta-train - meta-test
+    diff_curve = curves[0] - curves[2]
+    ax.plot(ticks, diff_curve,
+        label='meta-train - meta-test', marker='o', markersize=2)
+
+    # Theoretical bounds
+    n_T = n_meta_train
+    n_B = total_n_algos
+    error_bars_the = [get_theoretical_error_bar(n_T, i, delta=0.05) 
+                        for i in ticks]
+    ax.plot(ticks, error_bars_the,
+        label='Theoretical error bar', marker='o', markersize=2)
+
+    # Figure's
+    plt.xlabel("Number of algos " +
+        "(|Dtr|={}, |Dte|={}, ".format(n_meta_train, n_meta_test) +
+        "total #algos={})".format(total_n_algos))
+    plt.ylabel("Average {} score".format(score_name))
+    if log_scale:
+        plt.xscale('log')
+        plt.yscale('log')
+
+    # Title
+    d = da_matrix.name
+    fig.axes[0].set_title("{} - {} VS #algos".format(d, score_name))
+    fig2.axes[0].set_title("{} - {} diff VS #algos".format(d, score_name))
+    plt.legend()
+    plt.show()
+    if save:
+        save_fig(fig, name_expe=name_expe, 
+            filename="{}-alc-vs-n_algos.jpg".format(d))
+        save_fig(fig2, name_expe=name_expe, 
+            filename="{}-alc-diff-vs-n_algos.jpg".format(d))
+
+
 def plot_score_vs_n_algos_with_error_bars(repeat=100,
         datasets_dir="../datasets", 
         dataset_names=None, log_scale=False, save=False, max_ticks=50,
@@ -397,8 +623,7 @@ def plot_score_vs_n_algos_with_error_bars(repeat=100,
                 if d == 'AutoDL':
                     n_meta_train = 5
                 else:
-                    # n_meta_train = da_matrix.perfs.shape[0] // 2
-                    n_meta_train = 5
+                    n_meta_train = da_matrix.perfs.shape[0] // 2
                 
                 n_meta_test = da_matrix.perfs.shape[0] - n_meta_train
 

@@ -5,13 +5,19 @@ from mlt import ROOT_DIR
 
 from mlt.data import get_da_matrix_from_real_dataset_dir
 from mlt.data import URVDAMatrix
+from mlt.data import DAMatrix
 
 from mlt.figures import plot_score_vs_n_tasks_with_error_bars
 from mlt.figures import plot_score_vs_n_algos_with_error_bars
 from mlt.figures import inspect_da_matrix
 from mlt.figures import plot_all_figures
+from mlt.figures import plot_score_vs_n_algos_per_matrix
+from mlt.figures import plot_score_vs_n_tasks_per_matrix
+
+from mlt.meta_learner import MeanMetaLearner
 
 import os
+import numpy as np
 
 
 DATASETS_DIR = os.path.join(ROOT_DIR, os.pardir, 'datasets')
@@ -70,6 +76,32 @@ def test_inspect_da_matrix():
             inspect_da_matrix(da_matrix)
 
 
+def test_plot_score_vs_n_algos_per_matrix():
+    perfs = np.array([
+        [1, 0.5, 0],
+        [0, 0.5, 1],
+    ])
+
+    da_matrix = DAMatrix(perfs=perfs, name='Manual')
+
+    meta_learner = MeanMetaLearner()
+    plot_score_vs_n_algos_per_matrix(da_matrix, meta_learner)
+
+
+def test_plot_score_vs_n_tasks_per_matrix():
+    perfs = np.array([
+        [1, 0.5, 0],
+        [1, 0, 0],
+        [0, 1, 1],
+        [0, 0.5, 1],
+    ])
+
+    da_matrix = DAMatrix(perfs=perfs, name='Manual')
+
+    meta_learner = MeanMetaLearner()
+    plot_score_vs_n_tasks_per_matrix(da_matrix, meta_learner)
+
+
 def test_plot_all_figures():
     # dataset_names = ['URV', 'OpenML', 'URV-unnorm']
     # dataset_names = None
@@ -80,6 +112,8 @@ def test_plot_all_figures():
 
 if __name__ == '__main__':
     # test_plot_score_vs_n_tasks_with_error_bars()
-    test_plot_score_vs_n_algos_with_error_bars()
+    # test_plot_score_vs_n_algos_with_error_bars()
     # test_inspect_da_matrix()
     # test_plot_all_figures()
+    # test_plot_score_vs_n_algos_per_matrix()
+    test_plot_score_vs_n_tasks_per_matrix()
