@@ -61,7 +61,7 @@ def inspect_da_matrix(da_matrix, results_dir="../results", save=True):
         filename = "mean-std-algos-{}".format(name)
         save_fig(fig, results_dir=results_dir, filename=filename)
 
-    heatmap = sns.clustermap(perfs)
+    heatmap = sns.clustermap(perfs, metric='correlation')
     heatmap.fig.suptitle(name)
     if save:
         heatmap.fig.savefig(os.path.join(results_dir, name))
@@ -135,8 +135,6 @@ def get_meta_scores_vs_n_tasks(da_matrix, meta_learner,
             valid_indices = set(np.random.choice(T, T - t, replace=False))
             meta_learner.meta_fit(da_meta_train, valid_indices)
             i_algo = meta_learner.indices_algo_to_reveal[0]
-            # print(da_meta_train.algos[i_algo])
-            # print(valid_indices)
 
             # Meta-train & meta-valid score
             sum_tr = 0
@@ -442,7 +440,6 @@ def get_meta_scores_vs_n_algos(da_matrix, meta_learner,
             # Choose a among A algorithms for meta-train, without replacement
             indices_algos = np.random.choice(A, a, replace=False)
             if nested:
-                print("haha")
                 indices_algos = list(range(idx + 1))
             da_algo_train = da_meta_train.get_algo_subset(indices_algos)
             da_algo_test = da_meta_test.get_algo_subset(indices_algos)
@@ -517,7 +514,8 @@ def plot_score_vs_n_algos_per_matrix(
       name_expe: str, name of the experiment. Used for naming the resulting 
         figures
       score_name: str, name of the score. Used in the figures' title
-      kwargs: dict of other arguments
+      kwargs: dict of other arguments, which is passed to the function
+        `get_meta_scores_vs_n_algos`.
 
     Returns:
       list of curves: [mtr_mean, mtr_std, mte_mean, mte_std]
