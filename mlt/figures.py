@@ -219,6 +219,9 @@ def plot_score_vs_n_tasks_per_matrix(
         figures
       score_name: str, name of the score. Used in the figures' title
       kwargs: dict of other arguments
+
+    Returns:
+      list of curves: [mtr_mean, mtr_std, mva_mean, mva_std, mte_mean, mte_std]
     """
     if n_meta_train is None:
         n_meta_train = da_matrix.perfs.shape[0] // 2
@@ -281,6 +284,8 @@ def plot_score_vs_n_tasks_per_matrix(
     if save:
         save_fig(fig2, name_expe=name_expe, 
             filename="{}-alc-diff-vs-n_tasks.jpg".format(d))
+    
+    return curves
 
 
 def plot_score_vs_n_tasks_with_error_bars(repeat=100, 
@@ -513,6 +518,9 @@ def plot_score_vs_n_algos_per_matrix(
         figures
       score_name: str, name of the score. Used in the figures' title
       kwargs: dict of other arguments
+
+    Returns:
+      list of curves: [mtr_mean, mtr_std, mte_mean, mte_std]
     """
     if n_meta_train is None:
         n_meta_train = da_matrix.perfs.shape[0] // 2
@@ -579,6 +587,8 @@ def plot_score_vs_n_algos_per_matrix(
             filename="{}-alc-vs-n_algos.jpg".format(d))
         save_fig(fig2, name_expe=name_expe, 
             filename="{}-alc-diff-vs-n_algos.jpg".format(d))
+
+    return curves
 
 
 def plot_score_vs_n_algos_with_error_bars(repeat=100,
