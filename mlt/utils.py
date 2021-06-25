@@ -44,7 +44,7 @@ def save_fig(fig, name_expe=None, results_dir='../results',
         if name_expe is None:
             filename = 'learning-curves.jpg'
         else:
-            filename = '{}-learning-curves.jpg'.format(name_expe)
+            filename = '{}.jpg'.format(name_expe)
 
     # Create directory for the experiment
     expe_dir = os.path.join(results_dir, str(name_expe))

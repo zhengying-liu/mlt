@@ -15,6 +15,10 @@ from mlt.data import CopulaCliqueDAMatrix
 from mlt.utils import save_fig
 from mlt.utils import get_theoretical_error_bar
 
+from scipy.stats import pearsonr
+
+from datetime import datetime
+
 
 class S0A1MetaLearner(object):
     """Abstract class for S0A1 meta-learner according to Zhengying Liu's PhD 
@@ -171,7 +175,7 @@ class GreedyPlusMetaLearner(S0A1MetaLearner):
 
         n_algos = len(da_matrix.algos)
 
-        # Exlude the indices for validation
+        # Exclude the indices for validation
         excluded_indices = set(excluded_indices)
         filtered_da_matrix = []
         for i, row in enumerate(da_matrix.perfs):
@@ -264,6 +268,196 @@ class OptimalMetaLearner(S0A1MetaLearner):
         for i_algo in self.indices_algo_to_reveal:
             perf = da_matrix.eval(i_dataset, i_algo)
             self.history.append((i_dataset, i_algo, perf))
+
+
+# Now we want to create a prior ranking with D
+# We then vary the number of candidates in the final phase, choosing the top best in D
+# Among those we pick the best candidate in F
+# We plot its rank in F (meta-training error) and in G (meta-test error)
+def get_ofc(D, F, G, debug_=False):
+    ''' Get over-fitting curves as a function of # alogorithms'''
+    # G is: the generalization errors, the "true" rank, and algorithm IDs (all identical)
+    # Get the final phase error rates 
+    sh = D.shape
+    m=sh[0]
+    Fe =  np.zeros(sh)
+    Fe[F] = np.arange(m)
+    Fe = Fe.astype(int)
+    # Get the final phase scores in the order given by the development phase
+    Fes = Fe[D]
+    if debug_: 
+        print(D)
+        print(F)
+        print(Fe)
+        print(Fes)
+    # Get training and generalization errors
+    Tr = np.zeros(sh)
+    Te = np.zeros(sh)
+    for j in np.arange(1,m+1):
+        if debug_: print(Fes[0:j])
+        Tr[j-1] = np.min(Fes[0:j])
+        k = np.argmin(Fes[0:j])
+        Te[j-1] = D[k]
+        assert D[k] == F[Fes[k]]
+        assert Tr[j-1] == Fes[k]
+    return Tr, Te
+
+
+class TopkRankMetaLearner(S0A1MetaLearner):
+    """The `meta_fit` method of this class may not give a full ranking."""
+
+    def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None, 
+                 gdf_ratios=None, repeat=100, plot=True):
+        self.name = 'top-k-rank'
+
+        if gdf_ratios is None:
+            gdf_ratios = [1 / 3] * 3
+        
+        gdf_cumsum = np.cumsum(gdf_ratios)
+
+        n_algos = len(da_matrix.algos)
+        n_datasets = len(da_matrix.datasets)
+
+        # Exclude the indices for validation
+        if excluded_indices is None:
+            excluded_indices = {}
+        elif not isinstance(excluded_indices, range):
+            excluded_indices = set(excluded_indices)
+
+        # Maintenant on doit faire plein de tirage et moyenner les learning curves
+        m = n_algos
+        num_trials = repeat
+        TR = np.zeros((num_trials, m))
+        TE = np.zeros((num_trials, m))
+        C = np.zeros((num_trials,))
+        G = np.arange(m)
+        
+        for t in range(num_trials):
+            G_perfs = []
+            D_perfs = []
+            F_perfs = []
+            for i, row in enumerate(da_matrix.perfs):
+                if not i in excluded_indices:
+                    x = np.random.rand()
+                    if x <= gdf_cumsum[0]:
+                        G_perfs.append(row)
+                    elif x <= gdf_cumsum[1]:
+                        D_perfs.append(row)
+                    else:
+                        F_perfs.append(row)
+            perfs = da_matrix.perfs
+            G_perfs = np.array(G_perfs) if len(G_perfs) else perfs[np.random.randint(n_datasets)][None, :]
+            D_perfs = np.array(D_perfs) if len(D_perfs) else perfs[np.random.randint(n_datasets)][None, :]
+            F_perfs = np.array(F_perfs) if len(F_perfs) else perfs[np.random.randint(n_datasets)][None, :]
+            assert G_perfs.shape[-1] == m
+            assert D_perfs.shape[-1] == m
+            assert F_perfs.shape[-1] == m
+            Gas = (-G_perfs).sum(axis=0).argsort()
+            Das = (-D_perfs).sum(axis=0).argsort()
+            Fas = (-F_perfs).sum(axis=0).argsort()
+            D = Gas[Das]
+            F = Gas[Fas]
+            G = np.arange(m)
+            c = pearsonr(D, G)[0]
+        
+            Tr, Te = get_ofc(D, F, G)
+            TR[t, :] = Tr
+            TE[t, :] = Te
+            C[t] = c
+
+            Fe =  np.zeros(m)
+            Fe[F] = np.arange(m)
+            Fe = Fe.astype(int)
+            # Get the final phase scores in the order given by the development phase
+            Fes = Fe[D]
+            Gas_inv = np.zeros(m)
+            Gas_inv[Gas] = np.arange(m)
+            indices_algo_to_reveal = Gas_inv[Fes[:3].argsort()].astype(int)
+            # print([da_matrix.algos[i] for i in indices_algo_to_reveal])
+        
+        Tr = np.mean(TR, axis=0) / m
+        Te = np.mean(TE, axis=0) / m
+        Correl = np.mean(C)
+
+        # Determine `k`: only top `k` participants in development phase will be
+        # considered
+        k = Te.argmin() + 1
+
+        if plot:
+            STr = np.std(TR, axis=0) / m
+            STe = np.std(TE, axis=0) / m
+            STre = 2*STr/np.sqrt(num_trials)
+            STee = 2*STe/np.sqrt(num_trials)
+
+            fig = plt.figure()
+            ax = fig.add_subplot(1, 1, 1)
+
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+            plt.plot(Tr, 'ro')
+            plt.plot(Tr, 'r-', label = 'Meta-training error')
+            plt.fill_between(G, (Tr-STre), (Tr+STre), color='red', alpha=0.1)
+
+            plt.plot(Te, 'bo')
+            plt.plot(Te, 'b-', label = 'Meta-generalization error')
+            plt.fill_between(G, (Te-STee), (Te+STee), color='blue', alpha=0.1)
+
+            plt.gca().legend()
+            plt.xlabel('Number of Final phase participants')
+            plt.ylabel('Average error of final phase winner')
+            name = da_matrix.name
+            plt.title('{}; Error bar = 2 stderr; <Correl>={:.2f}'.format(name, Correl))
+            plt.show()
+
+            date_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+            name_expe = "{}-topk-rank-{}".format(name, date_str)
+            save_fig(fig, name_expe=name_expe)
+
+
+            # Theoretical bound and difference
+            fig = plt.figure()
+            ax = fig.add_subplot(1, 1, 1)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+            # Meta-train - meta-test
+            diff_curve = Te - Tr
+            ax.plot(diff_curve,
+                label='meta-test - meta-train', marker='o', markersize=2)
+
+            # Theoretical bounds
+            n_T = n_datasets
+            n_B = n_algos
+            error_bars_the = [get_theoretical_error_bar(n_T, i + 1, delta=0.05) 
+                                for i in range(n_B)]
+            ax.plot(error_bars_the,
+                label='Theoretical error bar', marker='o', markersize=2)
+
+            plt.gca().legend()
+            plt.xlabel('Number of Algorithms')
+            plt.ylabel('Ranking difference in percentage')
+            name = da_matrix.name
+            plt.title('{} - ranking difference'.format(name))
+            plt.show()
+
+            date_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+            name_expe = "{}-topk-rank-diff-{}".format(name, date_str)
+            save_fig(fig, name_expe=name_expe)
+
+        Fe =  np.zeros(m)
+        Fe[F] = np.arange(m)
+        Fe = Fe.astype(int)
+        # Get the final phase scores in the order given by the development phase
+        Fes = Fe[D]
+        Gas_inv = np.zeros(m)
+        Gas_inv[Gas] = np.arange(m)
+        self.indices_algo_to_reveal = Gas_inv[Fes[:k].argsort()].astype(int)
+            
+    def fit(self, da_matrix: DAMatrix, i_dataset: int):
+        for i_algo in self.indices_algo_to_reveal:
+            perf = da_matrix.eval(i_dataset, i_algo)
+            self.history.append((i_dataset, i_algo, perf))
+
+
 
 
 def get_conditional_prob(perfs, i_target=None, cond_cols=None, cond_value=0):

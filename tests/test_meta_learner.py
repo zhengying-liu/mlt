@@ -5,6 +5,7 @@ from mlt.meta_learner import RandomSearchMetaLearner
 from mlt.meta_learner import MeanMetaLearner
 from mlt.meta_learner import GreedyMetaLearner
 from mlt.meta_learner import OptimalMetaLearner
+from mlt.meta_learner import TopkRankMetaLearner
 from mlt.meta_learner import run_and_plot_learning_curve, run_leave_one_out
 from mlt.meta_learner import run_meta_validation
 from mlt.meta_learner import plot_meta_learner_with_different_ranks
@@ -19,8 +20,8 @@ from mlt.meta_learner import plot_meta_learner_with_different_cardinal_clique
 from mlt.meta_learner import plot_alc_vs_cardinal_clique
 from mlt.meta_learner import get_conditional_prob
 from mlt.meta_learner import plot_error_bar_vs_B
-from mlt.meta_learner import get_meta_scores_vs_n_tasks
 
+from mlt.figures import get_meta_scores_vs_n_tasks
 from mlt.figures import plot_curve_with_error_bars
 
 from mlt.data import DAMatrix, NFLDAMatrix, Case2DAMatrix, Case3dDAMatrix
@@ -671,6 +672,19 @@ def test_get_meta_scores_vs_n_tasks():
     return curves
 
 
+def test_TopkRankMetaLearner():
+    meta_learner = TopkRankMetaLearner()
+    
+    datasets_dir="../datasets"
+    dataset_names = ['artificial_r50c20r20', 'AutoDL', 'AutoML', 'OpenML-Alors', 'Statlog']
+    ds = [d for d in os.listdir(datasets_dir) if d in set(dataset_names)]
+    for d in ds:
+        dataset_dir = os.path.join(datasets_dir, d)
+        if os.path.isdir(dataset_dir):
+            da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
+            meta_learner.meta_fit(da_matrix)
+
+
 if __name__ == '__main__':
     pass
     # test_run_and_plot_learning_curve()
@@ -709,4 +723,6 @@ if __name__ == '__main__':
 
     # test_get_meta_scores_vs_n_tasks()
 
-    test_plot_curve_with_error_bars()
+    # test_plot_curve_with_error_bars()
+
+    test_TopkRankMetaLearner()
