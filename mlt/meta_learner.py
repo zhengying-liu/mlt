@@ -307,7 +307,15 @@ class TopkRankMetaLearner(S0A1MetaLearner):
     """The `meta_fit` method of this class may not give a full ranking."""
 
     def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None, 
-                 gdf_ratios=None, repeat=100, plot=True):
+                 gdf_ratios=None, repeat=100, plot=False, n_feedback=None):
+        """
+        Args:
+          gdf_ratios: list of length 0.3, the sum should be equal to 1
+          repeat: int, number of repetitions of "cross-validation"
+          plot: boolean, if plot a figure
+          n_feedback: int, first `n_feedback` examples will be used as 
+            "feedback phase" data
+        """
         self.name = 'top-k-rank'
 
         if gdf_ratios is None:
@@ -316,13 +324,19 @@ class TopkRankMetaLearner(S0A1MetaLearner):
         gdf_cumsum = np.cumsum(gdf_ratios)
 
         n_algos = len(da_matrix.algos)
-        n_datasets = len(da_matrix.datasets)
+        n_datasets = len(da_matrix.datasets) - len(excluded_indices)
 
         # Exclude the indices for validation
         if excluded_indices is None:
             excluded_indices = {}
         elif not isinstance(excluded_indices, range):
             excluded_indices = set(excluded_indices)
+        perfs = []
+        for i, row in enumerate(da_matrix.perfs):
+            if not i in excluded_indices:
+                perfs.append(row)
+        perfs = np.array(perfs)
+        
 
         # Maintenant on doit faire plein de tirage et moyenner les learning curves
         m = n_algos
@@ -345,7 +359,6 @@ class TopkRankMetaLearner(S0A1MetaLearner):
                         D_perfs.append(row)
                     else:
                         F_perfs.append(row)
-            perfs = da_matrix.perfs
             G_perfs = np.array(G_perfs) if len(G_perfs) else perfs[np.random.randint(n_datasets)][None, :]
             D_perfs = np.array(D_perfs) if len(D_perfs) else perfs[np.random.randint(n_datasets)][None, :]
             F_perfs = np.array(F_perfs) if len(F_perfs) else perfs[np.random.randint(n_datasets)][None, :]
@@ -365,15 +378,15 @@ class TopkRankMetaLearner(S0A1MetaLearner):
             TE[t, :] = Te
             C[t] = c
 
-            Fe =  np.zeros(m)
-            Fe[F] = np.arange(m)
-            Fe = Fe.astype(int)
-            # Get the final phase scores in the order given by the development phase
-            Fes = Fe[D]
-            Gas_inv = np.zeros(m)
-            Gas_inv[Gas] = np.arange(m)
-            indices_algo_to_reveal = Gas_inv[Fes[:3].argsort()].astype(int)
-            # print([da_matrix.algos[i] for i in indices_algo_to_reveal])
+            # Fe =  np.zeros(m)
+            # Fe[F] = np.arange(m)
+            # Fe = Fe.astype(int)
+            # # Get the final phase scores in the order given by the development phase
+            # Fes = Fe[D]
+            # Gas_inv = np.zeros(m)
+            # Gas_inv[Gas] = np.arange(m)
+            # indices_algo_to_reveal = Gas_inv[Fes[:3].argsort()].astype(int)
+            # # print([da_matrix.algos[i] for i in indices_algo_to_reveal])
         
         Tr = np.mean(TR, axis=0) / m
         Te = np.mean(TE, axis=0) / m
@@ -382,6 +395,42 @@ class TopkRankMetaLearner(S0A1MetaLearner):
         # Determine `k`: only top `k` participants in development phase will be
         # considered
         k = Te.argmin() + 1
+
+        # Use a part of data as feedback and the rest as final
+        # Use all data to estimate G
+        if n_feedback is None:
+            n_filtered = len(da_matrix.perfs) - len(excluded_indices)
+            n_feedback = n_filtered // 2
+        feedback_perfs = perfs[:n_feedback]
+        final_perfs = perfs[n_feedback:]
+        Gas = (-perfs).sum(axis=0).argsort()
+        Das = (-feedback_perfs).sum(axis=0).argsort()
+        Fas = (-final_perfs).sum(axis=0).argsort()
+        D = Gas[Das]
+        F = Gas[Fas]
+        G = np.arange(m)
+
+        Fe =  np.zeros(m)
+        Fe[F] = np.arange(m)
+        Fe = Fe.astype(int)
+        # Get the final phase scores in the order given by the development phase
+        Fes = Fe[D]
+        Gas_inv = np.zeros(m)
+        Gas_inv[Gas] = np.arange(m)
+        self.indices_algo_to_reveal = Gas_inv[Fes[:k].argsort()].astype(int)
+        final_phase_score = [np.min(Fes[:i+1]) / m for i in range(k)]
+
+        # Validation
+        if len(excluded_indices) > 0:
+            excluded_perfs = []
+            for i, row in enumerate(da_matrix.perfs):
+                if i in excluded_indices:
+                    excluded_perfs.append(row)
+            excluded_perfs = np.array(excluded_perfs)
+            E = (-excluded_perfs).sum(axis=0).argsort()
+            E_inv = np.zeros(m)
+            E_inv[E] = np.arange(m)
+            meta_test_score = E_inv[self.indices_algo_to_reveal[0]] / m
 
         if plot:
             STr = np.std(TR, axis=0) / m
@@ -395,24 +444,29 @@ class TopkRankMetaLearner(S0A1MetaLearner):
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
             plt.plot(Tr, 'ro')
-            plt.plot(Tr, 'r-', label = 'Meta-training error')
+            plt.plot(Tr, 'r-', label = 'Meta-train error')
             plt.fill_between(G, (Tr-STre), (Tr+STre), color='red', alpha=0.1)
 
             plt.plot(Te, 'bo')
-            plt.plot(Te, 'b-', label = 'Meta-generalization error')
+            plt.plot(Te, 'b-', label = 'Meta-valid error')
             plt.fill_between(G, (Te-STee), (Te+STee), color='blue', alpha=0.1)
+
+            if len(excluded_indices) > 0:
+                plt.plot(0, meta_test_score, 'black', marker='+')
+
+            plt.plot(final_phase_score, 'g-', label="Final phase error", marker='o')
 
             plt.gca().legend()
             plt.xlabel('Number of Final phase participants')
-            plt.ylabel('Average error of final phase winner')
+            plt.ylabel('Average ranking percentage')
             name = da_matrix.name
             plt.title('{}; Error bar = 2 stderr; <Correl>={:.2f}'.format(name, Correl))
             plt.show()
 
             date_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-            name_expe = "{}-topk-rank-{}".format(name, date_str)
-            save_fig(fig, name_expe=name_expe)
-
+            name_expe = "topk-rank"
+            filename = "{}-{}-{}".format(name, name_expe, date_str)
+            save_fig(fig, name_expe=name_expe, filename=filename)
 
             # Theoretical bound and difference
             fig = plt.figure()
@@ -443,14 +497,7 @@ class TopkRankMetaLearner(S0A1MetaLearner):
             name_expe = "{}-topk-rank-diff-{}".format(name, date_str)
             save_fig(fig, name_expe=name_expe)
 
-        Fe =  np.zeros(m)
-        Fe[F] = np.arange(m)
-        Fe = Fe.astype(int)
-        # Get the final phase scores in the order given by the development phase
-        Fes = Fe[D]
-        Gas_inv = np.zeros(m)
-        Gas_inv[Gas] = np.arange(m)
-        self.indices_algo_to_reveal = Gas_inv[Fes[:k].argsort()].astype(int)
+        
             
     def fit(self, da_matrix: DAMatrix, i_dataset: int):
         for i_algo in self.indices_algo_to_reveal:

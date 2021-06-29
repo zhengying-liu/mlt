@@ -682,7 +682,10 @@ def test_TopkRankMetaLearner():
         dataset_dir = os.path.join(datasets_dir, d)
         if os.path.isdir(dataset_dir):
             da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
-            meta_learner.meta_fit(da_matrix)
+            n_datasets = len(da_matrix.datasets)
+            excluded_indices = range(n_datasets // 2)
+            meta_learner.meta_fit(da_matrix, plot=True, 
+                excluded_indices=excluded_indices)
 
 
 if __name__ == '__main__':
