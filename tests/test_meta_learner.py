@@ -20,6 +20,7 @@ from mlt.meta_learner import plot_meta_learner_with_different_cardinal_clique
 from mlt.meta_learner import plot_alc_vs_cardinal_clique
 from mlt.meta_learner import get_conditional_prob
 from mlt.meta_learner import plot_error_bar_vs_B
+from mlt.meta_learner import get_average_rank
 
 from mlt.figures import get_meta_scores_vs_n_tasks
 from mlt.figures import plot_curve_with_error_bars
@@ -672,6 +673,28 @@ def test_get_meta_scores_vs_n_tasks():
     return curves
 
 
+def test_unit_TopkRankMetaLearner():
+    meta_learner = TopkRankMetaLearner()
+
+    for _ in range(10):
+        perfs = np.array([
+            [1, 3, 2],
+            [4, 6, 5],
+        ])
+        n_algos = perfs.shape[1]
+        perm = np.random.permutation(n_algos)
+        perfs = perfs[:, perm]
+        da_matrix = DAMatrix(perfs=perfs)
+
+        meta_learner.meta_fit(da_matrix)
+        idx = meta_learner.indices_algo_to_reveal
+        # print(idx)
+        # print([da_matrix.algos[i] for i in idx])
+        # print(perfs, idx[0], perm)
+        assert perm[idx[0]] == 1
+
+
+
 def test_TopkRankMetaLearner():
     meta_learner = TopkRankMetaLearner()
     
@@ -686,6 +709,23 @@ def test_TopkRankMetaLearner():
             excluded_indices = range(n_datasets // 2)
             meta_learner.meta_fit(da_matrix, plot=True, 
                 excluded_indices=excluded_indices)
+
+
+def test_get_average_rank():
+    perfs = np.array([
+        [1, 2, 3],
+        [4, 5, 6],
+    ])
+    avg_rank = get_average_rank(perfs)
+    assert np.all(np.isclose(avg_rank, np.array([2, 1, 0])))
+    avg_rank = get_average_rank(perfs, negative_score=True)
+    assert np.all(np.isclose(avg_rank, np.array([0, 1, 2])))
+
+    perfs = np.array([
+        [],
+    ])
+    avg_rank = get_average_rank(perfs)
+    assert len(avg_rank) == 0
 
 
 if __name__ == '__main__':
@@ -728,4 +768,8 @@ if __name__ == '__main__':
 
     # test_plot_curve_with_error_bars()
 
-    test_TopkRankMetaLearner()
+    # test_TopkRankMetaLearner()
+
+    # test_get_average_rank()
+
+    test_unit_TopkRankMetaLearner()

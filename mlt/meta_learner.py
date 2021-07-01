@@ -303,6 +303,44 @@ def get_ofc(D, F, G, debug_=False):
     return Tr, Te
 
 
+def get_ranking(li, negative_score=False):
+    """Return the ranking of each entry in a list."""
+    le = len(li)
+    arr = np.array(li)
+    if negative_score:
+        arr = -arr
+    argsort = (-arr).argsort()
+    ranking = np.zeros(le)
+    ranking[argsort] = np.arange(le)
+    return ranking
+
+
+def get_average_rank(perfs, negative_score=False):
+    """
+    Args:
+      perfs: numpy.ndarray, performance matrix of shape (n_datasets, n_algos)
+      negative_score: boolean, if True, the smaller the score is, the better
+    
+    Returns:
+      a list of `n_algos` entries, each being the average rank of the algorithms
+    
+    N.B. the rank begins at 0.
+    """
+    if len(perfs.shape) != 2:
+        raise ValueError("`perfs` should be a 2-D array.")
+
+    n_datasets = len(perfs)
+    n_algos = len(perfs[0])
+    rankings = np.zeros(perfs.shape)
+
+    rankings = perfs.argsort()
+    for i, row in enumerate(perfs):
+        ranking = get_ranking(row, negative_score=negative_score)
+        rankings[i] = ranking
+    avg_rank = rankings.mean(axis=0)
+    return avg_rank
+
+
 class TopkRankMetaLearner(S0A1MetaLearner):
     """The `meta_fit` method of this class may not give a full ranking."""
 
@@ -324,7 +362,8 @@ class TopkRankMetaLearner(S0A1MetaLearner):
         gdf_cumsum = np.cumsum(gdf_ratios)
 
         n_algos = len(da_matrix.algos)
-        n_datasets = len(da_matrix.datasets) - len(excluded_indices)
+        n_excl = len(excluded_indices) if excluded_indices else 0
+        n_datasets = len(da_matrix.datasets) - n_excl
 
         # Exclude the indices for validation
         if excluded_indices is None:
@@ -365,9 +404,12 @@ class TopkRankMetaLearner(S0A1MetaLearner):
             assert G_perfs.shape[-1] == m
             assert D_perfs.shape[-1] == m
             assert F_perfs.shape[-1] == m
-            Gas = (-G_perfs).sum(axis=0).argsort()
-            Das = (-D_perfs).sum(axis=0).argsort()
-            Fas = (-F_perfs).sum(axis=0).argsort()
+            Gas = get_average_rank(G_perfs).argsort()
+            Das = get_average_rank(D_perfs).argsort()
+            Fas = get_average_rank(F_perfs).argsort()
+            # Gas = (-G_perfs).sum(axis=0).argsort()
+            # Das = (-D_perfs).sum(axis=0).argsort()
+            # Fas = (-F_perfs).sum(axis=0).argsort()
             D = Gas[Das]
             F = Gas[Fas]
             G = np.arange(m)
@@ -386,7 +428,7 @@ class TopkRankMetaLearner(S0A1MetaLearner):
             # Gas_inv = np.zeros(m)
             # Gas_inv[Gas] = np.arange(m)
             # indices_algo_to_reveal = Gas_inv[Fes[:3].argsort()].astype(int)
-            # # print([da_matrix.algos[i] for i in indices_algo_to_reveal])
+            # print([da_matrix.algos[i] for i in indices_algo_to_reveal])
         
         Tr = np.mean(TR, axis=0) / m
         Te = np.mean(TE, axis=0) / m
@@ -395,6 +437,7 @@ class TopkRankMetaLearner(S0A1MetaLearner):
         # Determine `k`: only top `k` participants in development phase will be
         # considered
         k = Te.argmin() + 1
+        self.k = k
 
         # Use a part of data as feedback and the rest as final
         # Use all data to estimate G
@@ -417,7 +460,7 @@ class TopkRankMetaLearner(S0A1MetaLearner):
         Fes = Fe[D]
         Gas_inv = np.zeros(m)
         Gas_inv[Gas] = np.arange(m)
-        self.indices_algo_to_reveal = Gas_inv[Fes[:k].argsort()].astype(int)
+        self.indices_algo_to_reveal = Gas[Fes[:k].argsort()].astype(int)
         final_phase_score = [np.min(Fes[:i+1]) / m for i in range(k)]
 
         # Validation
@@ -443,18 +486,21 @@ class TopkRankMetaLearner(S0A1MetaLearner):
 
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-            plt.plot(Tr, 'ro')
-            plt.plot(Tr, 'r-', label = 'Meta-train error')
-            plt.fill_between(G, (Tr-STre), (Tr+STre), color='red', alpha=0.1)
+            plt.plot(np.arange(m) + 1, Tr, 'ro')
+            plt.plot(np.arange(m) + 1, Tr, 'r-', label = 'Meta-train error')
+            plt.fill_between(G + 1, (Tr-STre), (Tr+STre), color='red', alpha=0.1)
 
-            plt.plot(Te, 'bo')
-            plt.plot(Te, 'b-', label = 'Meta-valid error')
-            plt.fill_between(G, (Te-STee), (Te+STee), color='blue', alpha=0.1)
+            plt.plot(np.arange(m) + 1, Te, 'bo')
+            plt.plot(np.arange(m) + 1, Te, 'b-', label = 'Meta-valid error')
+            plt.fill_between(G + 1, (Te-STee), (Te+STee), color='blue', alpha=0.1)
 
             if len(excluded_indices) > 0:
-                plt.plot(0, meta_test_score, 'black', marker='+')
+                plt.plot(1, meta_test_score, 'black', marker='+')
 
-            plt.plot(final_phase_score, 'g-', label="Final phase error", marker='o')
+            plt.plot(np.arange(len(final_phase_score)) + 1, [x for x in final_phase_score], 'g-', label="Final phase error", marker='o')
+            print(final_phase_score)
+
+            plt.xscale('log')
 
             plt.gca().legend()
             plt.xlabel('Number of Final phase participants')
@@ -475,7 +521,7 @@ class TopkRankMetaLearner(S0A1MetaLearner):
 
             # Meta-train - meta-test
             diff_curve = Te - Tr
-            ax.plot(diff_curve,
+            ax.plot(np.arange(m) + 1, diff_curve,
                 label='meta-test - meta-train', marker='o', markersize=2)
 
             # Theoretical bounds
@@ -483,8 +529,10 @@ class TopkRankMetaLearner(S0A1MetaLearner):
             n_B = n_algos
             error_bars_the = [get_theoretical_error_bar(n_T, i + 1, delta=0.05) 
                                 for i in range(n_B)]
-            ax.plot(error_bars_the,
+            ax.plot(np.arange(m) + 1, error_bars_the,
                 label='Theoretical error bar', marker='o', markersize=2)
+
+            plt.xscale('log')
 
             plt.gca().legend()
             plt.xlabel('Number of Algorithms')
