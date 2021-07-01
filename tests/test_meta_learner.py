@@ -706,7 +706,10 @@ def test_TopkRankMetaLearner():
         if os.path.isdir(dataset_dir):
             da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
             n_datasets = len(da_matrix.datasets)
+            print("Meta-dataset:", da_matrix.name)
+            print("n_datasets:", n_datasets)
             excluded_indices = range(n_datasets // 2)
+            print("Number of datasets used for validation:", len(excluded_indices))
             meta_learner.meta_fit(da_matrix, plot=True, 
                 excluded_indices=excluded_indices)
 
@@ -768,8 +771,8 @@ if __name__ == '__main__':
 
     # test_plot_curve_with_error_bars()
 
-    # test_TopkRankMetaLearner()
+    test_TopkRankMetaLearner()
 
     # test_get_average_rank()
 
-    test_unit_TopkRankMetaLearner()
+    # test_unit_TopkRankMetaLearner()

@@ -13,8 +13,12 @@ from mlt.figures import inspect_da_matrix
 from mlt.figures import plot_all_figures
 from mlt.figures import plot_score_vs_n_algos_per_matrix
 from mlt.figures import plot_score_vs_n_tasks_per_matrix
+from mlt.figures import plot_meta_learner_comparison
 
 from mlt.meta_learner import MeanMetaLearner
+from mlt.meta_learner import TopkRankMetaLearner
+from mlt.meta_learner import FixedKRankMetaLearner
+from mlt.meta_learner import TopPercRankMetaLearner
 
 import os
 import numpy as np
@@ -114,10 +118,32 @@ def test_plot_all_figures():
     plot_all_figures(dataset_names=dataset_names, log_scale=False, max_ticks=50)
 
 
+def test_plot_meta_learner_comparison():
+    top10_ml = FixedKRankMetaLearner(k=10)
+    top10perc_ml = TopPercRankMetaLearner(perc=10)
+    cv_ml = TopkRankMetaLearner()
+    meta_learners = [cv_ml, top10_ml, top10perc_ml]
+
+    datasets_dir="../datasets"
+    dataset_names = ['artificial_r50c20r20', 'AutoDL', 'AutoML', 'OpenML-Alors', 'Statlog']
+    ds = [d for d in os.listdir(datasets_dir) if d in set(dataset_names)]
+    for d in ds:
+        dataset_dir = os.path.join(datasets_dir, d)
+        if os.path.isdir(dataset_dir):
+            da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
+            n_datasets = len(da_matrix.datasets)
+            print("Meta-dataset:", da_matrix.name)
+            print("n_datasets:", n_datasets)
+            da_tr, da_te = da_matrix.train_test_split()
+            plot_meta_learner_comparison(da_tr, da_te, meta_learners, repeat=100)
+            
+
+
 if __name__ == '__main__':
     # test_plot_score_vs_n_tasks_with_error_bars()
     # test_plot_score_vs_n_algos_with_error_bars()
     # test_inspect_da_matrix()
     # test_plot_all_figures()
-    test_plot_score_vs_n_algos_per_matrix()
-    test_plot_score_vs_n_tasks_per_matrix()
+    # test_plot_score_vs_n_algos_per_matrix()
+    # test_plot_score_vs_n_tasks_per_matrix()
+    test_plot_meta_learner_comparison()

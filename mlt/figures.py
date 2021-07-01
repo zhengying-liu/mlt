@@ -6,6 +6,7 @@ from mlt.data import get_da_matrix_from_real_dataset_dir
 from mlt.meta_learner import MeanMetaLearner
 from mlt.utils import save_fig
 from mlt.utils import get_theoretical_error_bar
+from mlt.utils import get_average_rank
 
 import seaborn as sns
 
@@ -711,6 +712,52 @@ def plot_all_figures(repeat=100, datasets_dir="../datasets",
         save=save, max_ticks=max_ticks, shuffling=shuffling, **kwargs)
 
 
-#################################
-### Impact of effective rank ####
-#################################
+#####################################
+### Top K Meta-Learner Comparison ###
+#####################################
+def get_meta_learner_avg_rank(da_tr, da_te, meta_learner, repeat=10):
+    n_algos = len(da_tr.algos)
+    perfs_te = da_te.perfs
+    avg_ranks_te = get_average_rank(perfs_te)
+
+    avg_ranks_fit = []
+    for i in range(repeat):
+        meta_learner.meta_fit(da_tr)
+        idx = meta_learner.indices_algo_to_reveal[0]
+        ar = avg_ranks_te[idx]
+        avg_ranks_fit.append(ar)
+    
+    mean = np.mean(avg_ranks_fit)
+    std = np.std(avg_ranks_fit)
+
+    return mean, std
+
+
+def plot_meta_learner_comparison(da_tr, da_te, meta_learners, repeat=10):
+    means = []
+    stds = []
+    for i, meta_learner in enumerate(meta_learners):
+        mean, std = get_meta_learner_avg_rank(
+            da_tr, da_te, meta_learner, repeat=10)
+        means.append(mean)
+        stds.append(std)
+    
+    x_pos = np.arange(len(meta_learners))
+
+    # Build the plot
+    fig, ax = plt.subplots()
+    ax.bar(x_pos, means, yerr=stds, align='center', alpha=0.5, ecolor='black', capsize=10)
+    ax.set_ylabel('Average rank in percentage')
+    ax.set_xticks(x_pos)
+    names = [meta_learner.name for meta_learner in meta_learners]
+    ax.set_xticklabels(names)
+    da_name = da_tr.name[:-11]
+    title = "Meta-learner comparison on {}".format(da_name)
+    ax.set_title(title)
+    # ax.yaxis.grid(True)
+
+    # Save the figure and show
+    plt.tight_layout()
+    plt.savefig('{}-bar_plot_with_error_bars.png'.format(da_name.lower()))
+    plt.show()
+        

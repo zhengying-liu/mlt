@@ -14,6 +14,7 @@ from mlt.data import DAMatrix
 from mlt.data import CopulaCliqueDAMatrix
 from mlt.utils import save_fig
 from mlt.utils import get_theoretical_error_bar
+from mlt.utils import get_average_rank
 
 from scipy.stats import pearsonr
 
@@ -42,6 +43,14 @@ class S0A1MetaLearner(object):
         performance of algorithms on datasets step by step.
         """
         raise NotImplementedError
+
+
+class DefaultFitMetaLearner(S0A1MetaLearner):
+
+    def fit(self, da_matrix: DAMatrix, i_dataset: int):
+        for i_algo in self.indices_algo_to_reveal:
+            perf = da_matrix.eval(i_dataset, i_algo)
+            self.history.append((i_dataset, i_algo, perf))
 
 
 class RandomSearchMetaLearner(S0A1MetaLearner):
@@ -303,44 +312,6 @@ def get_ofc(D, F, G, debug_=False):
     return Tr, Te
 
 
-def get_ranking(li, negative_score=False):
-    """Return the ranking of each entry in a list."""
-    le = len(li)
-    arr = np.array(li)
-    if negative_score:
-        arr = -arr
-    argsort = (-arr).argsort()
-    ranking = np.zeros(le)
-    ranking[argsort] = np.arange(le)
-    return ranking
-
-
-def get_average_rank(perfs, negative_score=False):
-    """
-    Args:
-      perfs: numpy.ndarray, performance matrix of shape (n_datasets, n_algos)
-      negative_score: boolean, if True, the smaller the score is, the better
-    
-    Returns:
-      a list of `n_algos` entries, each being the average rank of the algorithms
-    
-    N.B. the rank begins at 0.
-    """
-    if len(perfs.shape) != 2:
-        raise ValueError("`perfs` should be a 2-D array.")
-
-    n_datasets = len(perfs)
-    n_algos = len(perfs[0])
-    rankings = np.zeros(perfs.shape)
-
-    rankings = perfs.argsort()
-    for i, row in enumerate(perfs):
-        ranking = get_ranking(row, negative_score=negative_score)
-        rankings[i] = ranking
-    avg_rank = rankings.mean(axis=0)
-    return avg_rank
-
-
 class TopkRankMetaLearner(S0A1MetaLearner):
     """The `meta_fit` method of this class may not give a full ranking."""
 
@@ -446,9 +417,9 @@ class TopkRankMetaLearner(S0A1MetaLearner):
             n_feedback = n_filtered // 2
         feedback_perfs = perfs[:n_feedback]
         final_perfs = perfs[n_feedback:]
-        Gas = (-perfs).sum(axis=0).argsort()
-        Das = (-feedback_perfs).sum(axis=0).argsort()
-        Fas = (-final_perfs).sum(axis=0).argsort()
+        Gas = get_average_rank(perfs).argsort()
+        Das = get_average_rank(feedback_perfs).argsort()
+        Fas = get_average_rank(final_perfs).argsort()
         D = Gas[Das]
         F = Gas[Fas]
         G = np.arange(m)
@@ -498,7 +469,7 @@ class TopkRankMetaLearner(S0A1MetaLearner):
                 plt.plot(1, meta_test_score, 'black', marker='+')
 
             plt.plot(np.arange(len(final_phase_score)) + 1, [x for x in final_phase_score], 'g-', label="Final phase error", marker='o')
-            print(final_phase_score)
+            # print(final_phase_score)
 
             plt.xscale('log')
 
@@ -553,6 +524,97 @@ class TopkRankMetaLearner(S0A1MetaLearner):
             self.history.append((i_dataset, i_algo, perf))
 
 
+class PredefinedKRankMetaLearner(DefaultFitMetaLearner):
+    """The `meta_fit` method of this class may not give a full ranking."""
+
+    def get_k(self, da_matrix: DAMatrix):
+        raise NotImplementedError
+
+    def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None, 
+                 plot=False, feedback_size=0.5, shuffling=True):
+        """
+        Args:
+          plot: boolean, if plot a figure
+          n_feedback: int, first `n_feedback` examples will be used as 
+            "feedback phase" data
+        """
+        self.k = self.get_k(da_matrix)
+
+        n_algos = len(da_matrix.algos)
+        n_excl = len(excluded_indices) if excluded_indices else 0
+        n_datasets = len(da_matrix.datasets) - n_excl
+
+        # Exclude the indices for validation
+        if excluded_indices is None:
+            excluded_indices = {}
+        elif not isinstance(excluded_indices, range):
+            excluded_indices = set(excluded_indices)
+        perfs = []
+        for i, row in enumerate(da_matrix.perfs):
+            if not i in excluded_indices:
+                perfs.append(row)
+        perfs = np.array(perfs)
+        
+        # Set k
+        k = self.k
+
+        # Use a part of data as feedback and the rest as final
+        # Use all data to estimate G
+        da_tr, da_te = DAMatrix(perfs=perfs).train_test_split(
+            train_size=feedback_size,
+            shuffling=shuffling,
+        )
+        feedback_perfs = da_tr.perfs
+        final_perfs = da_te.perfs
+
+        m = n_algos
+        Gas = (-perfs).sum(axis=0).argsort()
+        Das = (-feedback_perfs).sum(axis=0).argsort()
+        Fas = (-final_perfs).sum(axis=0).argsort()
+        D = Gas[Das]
+        F = Gas[Fas]
+
+        Fe =  np.zeros(m)
+        Fe[F] = np.arange(m)
+        Fe = Fe.astype(int)
+        # Get the final phase scores in the order given by the development phase
+        Fes = Fe[D]
+        self.indices_algo_to_reveal = Gas[Fes[:k].argsort()].astype(int)
+
+
+class FixedKRankMetaLearner(PredefinedKRankMetaLearner):
+
+    def __init__(self, k, history=None, name=None):
+        """
+        Args:
+          k: int, top `k` parcipant to enter final phase
+        """
+        self.k = k
+        if name is None:
+            name = "top-{}".format(k)
+        super().__init__(history=history, name=name)
+
+    def get_k(self, da_matrix):
+        return self.k
+
+
+class TopPercRankMetaLearner(PredefinedKRankMetaLearner):
+
+    def __init__(self, perc, history=None, name=None):
+        """
+        Args:
+          perc: int between (0, 100], percentage of top participants to enter 
+            final phase
+        """
+        self.perc = perc
+        if name is None:
+            name = "top-{}-perc".format(perc)
+        super().__init__(history=history, name=name)
+
+    def get_k(self, da_matrix):
+        n_algos = len(da_matrix.algos)
+        k = int(n_algos * self.perc / 100)
+        return k
 
 
 def get_conditional_prob(perfs, i_target=None, cond_cols=None, cond_value=0):
