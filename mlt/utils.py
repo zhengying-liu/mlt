@@ -95,5 +95,5 @@ def get_average_rank(perfs, negative_score=False):
     for i, row in enumerate(perfs):
         ranking = get_ranking(row, negative_score=negative_score)
         rankings[i] = ranking
-    avg_rank = rankings.mean(axis=0)
+    avg_rank = rankings.mean(axis=0) / n_algos * 100
     return avg_rank

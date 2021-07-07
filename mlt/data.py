@@ -447,6 +447,43 @@ class DirichletDistributionDAMatrix(DAMatrix):
         super().__init__(perfs=perfs, datasets=datasets, algos=algos, name=name)
 
 
+class SpecialistDAMatrix(DAMatrix):
+    """Several groups (domains, modalities, etc) of tasks exist"""
+
+    def __init__(self, alphas, n_datasets=2000, name="Specialist", shuffling=True):
+        """
+        Args:
+          alphas: lists of floats, the parameters of the Dirichlet distribution.
+            Has `n_algos` as length. Each `alpha` should have the same length.
+          n_datasets: int, number of datasets (i.e. rows) in the DA matrix
+          name: str, name of the DA matrix
+        """
+        if len(alphas) == 0:
+            raise ValueError("`alphas` should contain at least one list as element.")
+        n_groups = len(alphas)
+        n_algos = len(alphas[0])
+
+        perfss = []
+
+        for i, alpha in enumerate(alphas):
+            if i == 0:
+                size = n_datasets - (n_datasets // n_groups) * (n_groups - 1)
+            else:
+                size = n_datasets // n_groups
+            perfs = np.random.dirichlet(alpha, size=size)
+            perfss.append(perfs)
+        
+        perfs = np.concatenate(perfss, axis=0)
+
+        if shuffling:
+            perm = np.random.permutation(n_datasets)
+            perfs = perfs[perm, :]
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
+
+        super().__init__(perfs=perfs, datasets=datasets, algos=algos, name=name)
+
+
 class TransposeDirichletDistributionDAMatrix(DAMatrix):
 
     def __init__(self, alpha, n_algos=20, name="TransDirichletDist"):

@@ -6,6 +6,7 @@ from mlt import ROOT_DIR
 from mlt.data import get_da_matrix_from_real_dataset_dir
 from mlt.data import URVDAMatrix
 from mlt.data import DAMatrix
+from mlt.data import SpecialistDAMatrix
 
 from mlt.figures import plot_score_vs_n_tasks_with_error_bars
 from mlt.figures import plot_score_vs_n_algos_with_error_bars
@@ -120,23 +121,43 @@ def test_plot_all_figures():
 
 def test_plot_meta_learner_comparison():
     top10_ml = FixedKRankMetaLearner(k=10)
+    top1_ml = FixedKRankMetaLearner(k=1)
+    infty_ml = FixedKRankMetaLearner(k=10**5)
     top10perc_ml = TopPercRankMetaLearner(perc=10)
     cv_ml = TopkRankMetaLearner()
-    meta_learners = [cv_ml, top10_ml, top10perc_ml]
+    meta_learners = [top1_ml, cv_ml, top10_ml,  top10perc_ml, infty_ml]
 
     datasets_dir="../datasets"
     dataset_names = ['artificial_r50c20r20', 'AutoDL', 'AutoML', 'OpenML-Alors', 'Statlog']
     ds = [d for d in os.listdir(datasets_dir) if d in set(dataset_names)]
+    da_matrices = []
     for d in ds:
         dataset_dir = os.path.join(datasets_dir, d)
         if os.path.isdir(dataset_dir):
             da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
-            n_datasets = len(da_matrix.datasets)
-            print("Meta-dataset:", da_matrix.name)
-            print("n_datasets:", n_datasets)
-            da_tr, da_te = da_matrix.train_test_split()
-            plot_meta_learner_comparison(da_tr, da_te, meta_learners, repeat=100)
-            
+            da_matrices.append(da_matrix)
+
+    perfs = np.arange(100).reshape(10, 10)
+    da_matrix = DAMatrix(perfs=perfs, name="Always-9")
+    da_matrices.append(da_matrix)
+
+    # Generalist
+    n_algos = 20
+    alpha1 = np.arange(n_algos) + 1
+    da_matrix = SpecialistDAMatrix(alphas=[alpha1], name='generalist')
+    da_matrices.append(da_matrix)
+
+    # Specialist
+    alpha2 = n_algos - np.arange(n_algos) + 1
+    da_matrix = SpecialistDAMatrix(alphas=[alpha1, alpha2], name='specialist')
+    da_matrices.append(da_matrix)
+
+    for da_matrix in da_matrices:
+        n_datasets = len(da_matrix.datasets)
+        print("Meta-dataset:", da_matrix.name)
+        print("n_datasets:", n_datasets)
+        da_tr, da_te = da_matrix.train_test_split()
+        plot_meta_learner_comparison(da_tr, da_te, meta_learners, repeat=100)
 
 
 if __name__ == '__main__':

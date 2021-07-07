@@ -721,8 +721,14 @@ def get_meta_learner_avg_rank(da_tr, da_te, meta_learner, repeat=10):
     avg_ranks_te = get_average_rank(perfs_te)
 
     avg_ranks_fit = []
+    ks = []
     for i in range(repeat):
         meta_learner.meta_fit(da_tr)
+        try:
+            print(meta_learner.name, da_tr.name, len(da_tr.algos), meta_learner.k)
+            ks.append(meta_learner.k)
+        except:
+            print("No info on k.")
         idx = meta_learner.indices_algo_to_reveal[0]
         ar = avg_ranks_te[idx]
         avg_ranks_fit.append(ar)
@@ -730,17 +736,22 @@ def get_meta_learner_avg_rank(da_tr, da_te, meta_learner, repeat=10):
     mean = np.mean(avg_ranks_fit)
     std = np.std(avg_ranks_fit)
 
-    return mean, std
+    return mean, std, ks
 
 
-def plot_meta_learner_comparison(da_tr, da_te, meta_learners, repeat=10):
+def plot_meta_learner_comparison(da_tr, da_te, meta_learners, repeat=10, 
+        save=True):
+    n_algos = len(da_tr.algos)
+    
     means = []
     stds = []
+    kss = []
     for i, meta_learner in enumerate(meta_learners):
-        mean, std = get_meta_learner_avg_rank(
+        mean, std, ks = get_meta_learner_avg_rank(
             da_tr, da_te, meta_learner, repeat=10)
         means.append(mean)
         stds.append(std)
+        kss.append(ks)
     
     x_pos = np.arange(len(meta_learners))
 
@@ -751,13 +762,28 @@ def plot_meta_learner_comparison(da_tr, da_te, meta_learners, repeat=10):
     ax.set_xticks(x_pos)
     names = [meta_learner.name for meta_learner in meta_learners]
     ax.set_xticklabels(names)
+    for i in range(len(meta_learners)):
+        ks = kss[i]
+        kmean = np.mean(ks)
+        kstd = np.std(ks)
+        if kstd == 0:
+            s = "k={}".format(kmean)
+        else:
+            s = "k={:.1f}±{:.1f}".format(kmean, kstd)
+        x = x_pos[i] - 0.2
+        y = means[i] * 0.9 - 1
+        plt.text(x, y, s)
     da_name = da_tr.name[:-11]
-    title = "Meta-learner comparison on {}".format(da_name)
+    title = "Meta-learner comparison on {} (n_algos={})".format(da_name, n_algos)
     ax.set_title(title)
-    # ax.yaxis.grid(True)
 
     # Save the figure and show
     plt.tight_layout()
-    plt.savefig('{}-bar_plot_with_error_bars.png'.format(da_name.lower()))
     plt.show()
+
+    name_expe = 'meta-learner-comparison'
+    filename = '{}.png'.format(da_name.lower())
+
+    if save:
+        save_fig(fig, name_expe=name_expe, filename=filename)
         
