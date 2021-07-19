@@ -730,6 +730,7 @@ def get_meta_learner_avg_rank(da_tr, da_te, meta_learner, repeat=10):
         except:
             print("No info on k.")
         idx = meta_learner.indices_algo_to_reveal[0]
+        print("Chosen algorithm: {}".format(da_tr.algos[idx].name))
         ar = avg_ranks_te[idx]
         avg_ranks_fit.append(ar)
     

@@ -512,9 +512,10 @@ class TopkRankMetaLearner(S0A1MetaLearner):
             plt.title('{} - ranking difference'.format(name))
             plt.show()
 
+            name_expe = "topk-rank-diff"
             date_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-            name_expe = "{}-topk-rank-diff-{}".format(name, date_str)
-            save_fig(fig, name_expe=name_expe)
+            filename = "{}-{}-{}".format(name, name_expe, date_str)
+            save_fig(fig, name_expe=name_expe, filename=filename)
 
         
             

@@ -97,6 +97,52 @@ def test_plot_score_vs_n_algos_per_matrix():
         nested=True)
 
 
+def test_plot_score_vs_n_algos_per_matrix_on_real_datasets():
+    meta_learner = MeanMetaLearner()
+
+    datasets_dir="../datasets"
+    dataset_names = [
+        'URV-10-200-20', 
+        'artificial_r50c20r20', 'AutoDL', 'AutoML', 'OpenML-Alors', 'Statlog']
+    ds = [d for d in os.listdir(datasets_dir) if d in set(dataset_names)]
+    da_matrices = []
+    for d in ds:
+        dataset_dir = os.path.join(datasets_dir, d)
+        if os.path.isdir(dataset_dir):
+            da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
+            da_matrices.append(da_matrix)
+
+    for da_matrix in da_matrices:
+        plot_score_vs_n_algos_per_matrix(da_matrix, meta_learner, 
+            shuffling=True,
+            nested=False,
+            save=True,
+            max_ticks=20)
+
+
+def test_plot_score_vs_n_tasks_per_matrix_on_real_datasets():
+    meta_learner = MeanMetaLearner()
+
+    datasets_dir="../datasets"
+    dataset_names = [
+        'URV-10-200-20', 
+        'artificial_r50c20r20', 'AutoDL', 'AutoML', 'OpenML-Alors', 'Statlog']
+    ds = [d for d in os.listdir(datasets_dir) if d in set(dataset_names)]
+    da_matrices = []
+    for d in ds:
+        dataset_dir = os.path.join(datasets_dir, d)
+        if os.path.isdir(dataset_dir):
+            da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
+            da_matrices.append(da_matrix)
+
+    for da_matrix in da_matrices:
+        plot_score_vs_n_tasks_per_matrix(da_matrix, meta_learner, 
+            shuffling=True,
+            save=True,
+            max_ticks=20,
+            )
+
+
 def test_plot_score_vs_n_tasks_per_matrix():
     perfs = np.array([
         [1, 0.5, 0],
@@ -144,12 +190,12 @@ def test_plot_meta_learner_comparison():
     # Generalist
     n_algos = 20
     alpha1 = np.arange(n_algos) + 1
-    da_matrix = SpecialistDAMatrix(alphas=[alpha1], name='generalist')
+    da_matrix = SpecialistDAMatrix(alphas=[alpha1], name='Generalist')
     da_matrices.append(da_matrix)
 
     # Specialist
     alpha2 = n_algos - np.arange(n_algos) + 1
-    da_matrix = SpecialistDAMatrix(alphas=[alpha1, alpha2], name='specialist')
+    da_matrix = SpecialistDAMatrix(alphas=[alpha1, alpha2], name='Specialist2')
     da_matrices.append(da_matrix)
 
     for da_matrix in da_matrices:
@@ -167,4 +213,6 @@ if __name__ == '__main__':
     # test_plot_all_figures()
     # test_plot_score_vs_n_algos_per_matrix()
     # test_plot_score_vs_n_tasks_per_matrix()
-    test_plot_meta_learner_comparison()
+    # test_plot_meta_learner_comparison()
+    # test_plot_score_vs_n_algos_per_matrix_on_real_datasets()
+    # test_plot_score_vs_n_tasks_per_matrix_on_real_datasets()

@@ -699,7 +699,10 @@ def test_TopkRankMetaLearner():
     meta_learner = TopkRankMetaLearner()
     
     datasets_dir="../datasets"
-    dataset_names = ['artificial_r50c20r20', 'AutoDL', 'AutoML', 'OpenML-Alors', 'Statlog']
+    dataset_names = [
+        # 'URV-10-200-20', 
+        # 'artificial_r50c20r20', 
+        'AutoDL', 'AutoML', 'OpenML-Alors', 'Statlog']
     ds = [d for d in os.listdir(datasets_dir) if d in set(dataset_names)]
     for d in ds:
         dataset_dir = os.path.join(datasets_dir, d)
