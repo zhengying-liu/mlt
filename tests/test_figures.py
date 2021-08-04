@@ -18,6 +18,7 @@ from mlt.figures import plot_score_vs_n_tasks_per_matrix
 from mlt.figures import plot_meta_learner_comparison
 from mlt.figures import plot_overfit_curve
 from mlt.figures import plot_overfit_curve_sample_test
+from mlt.figures import plot_ofc_disjoint_tasks
 
 from mlt.meta_learner import MeanMetaLearner
 from mlt.meta_learner import TopkRankMetaLearner
@@ -251,12 +252,30 @@ def test_SRM():
 
 def test_plot_overfit_curve_sample_test():
     da_matrices = get_all_real_datasets_da_matrix()
+
+    # Generalist
+    da_matrix = URVDAMatrix(n_datasets=10000, n_algos=20, name='URV10000')
+    da_matrices.append(da_matrix)
+
     for da_matrix in da_matrices:
         n_datasets = len(da_matrix.datasets)
         print("Meta-dataset:", da_matrix.name)
         print("n_datasets:", n_datasets)
         plot_overfit_curve_sample_test(da_matrix)
 
+
+def test_plot_ofc_disjoint_tasks():
+    da_matrices = get_all_real_datasets_da_matrix()
+
+    # Generalist
+    da_matrix = URVDAMatrix(n_datasets=10000, n_algos=20, name='URV10000')
+    da_matrices.append(da_matrix)
+
+    for da_matrix in da_matrices:
+        n_datasets = len(da_matrix.datasets)
+        print("Meta-dataset:", da_matrix.name)
+        print("n_datasets:", n_datasets)
+        plot_ofc_disjoint_tasks(da_matrix, n_tasks_per_split=5)
 
 
 if __name__ == '__main__':
@@ -270,4 +289,5 @@ if __name__ == '__main__':
     # test_plot_score_vs_n_algos_per_matrix_on_real_datasets()
     # test_plot_score_vs_n_tasks_per_matrix_on_real_datasets()
     # test_plot_overfit_curve()
-    test_plot_overfit_curve_sample_test()
+    # test_plot_overfit_curve_sample_test()
+    test_plot_ofc_disjoint_tasks()

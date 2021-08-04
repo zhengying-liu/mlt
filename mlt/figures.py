@@ -820,13 +820,110 @@ def get_ofc_P(D, F, P, debug_=False):
     return Tr, Te
 
 
-def plot_overfit_curve_sample_test(da_matrix, num_trials=100, save=True):
+def plot_overfit_curve_DFP(Ds, Fs, Ps, da_name=None, save=True, name_expe=None):
+    """
+    Args:
+      Ds, Fs, Ps: list of permutations
+    """
+    assert len(Ds) == len(Fs)
+    assert len(Fs) == len(Ps)
+    num_trials = len(Ds)
     eps = np.finfo(float).eps # Machine precision
-    m = len(da_matrix.algos)
+    m = len(Ds[0])
     TR = np.zeros((num_trials, m))
     TE = np.zeros((num_trials, m))
     C = np.zeros((num_trials,))
     G = np.arange(m)
+    for t, (D, F, P) in enumerate(zip(Ds, Fs, Ps)):
+        Tr, Te = get_ofc_P(D, F, P) ### This is new
+        TR[t, :] = Tr
+        TE[t, :] = Te
+        C[t] = c = pearsonr(D, P)[0]
+
+    ##### Isabelle's code #####
+    Correl = np.mean(C)
+    Tr = np.mean(TR, axis=0)
+    Te = np.mean(TE, axis=0)
+    STr = np.std(TR, axis=0)
+    #print(STr)
+    Stderr = np.mean(STr)
+    STe = np.std(TE, axis=0)
+    #print(STe)
+    STre = 2*STr/np.sqrt(num_trials)
+    STee = 2*STe/np.sqrt(num_trials)
+    Gap = np.abs(Te - Tr)
+    
+    #Tr_pred = Tr[0]*1/(1+np.arange(m))
+    Tr_pred =  np.zeros(Tr.shape)
+    K=1.*Tr[0]/(STr[0]+eps)
+    for mm in np.arange(m):
+        Tr_pred[mm] = K*1./np.sum(1./(STr[0:mm+1]+eps))
+    
+    #s = np.sqrt(np.arange(m))
+    #A = Tr[0]*(1-np.sqrt(m-1))/(eps+Tr[0]-Gap[1]*np.sqrt(m-1))
+    #B = A-1
+    #Gap_pred = (A * Gap[1] * s) / (eps + B + s)
+    
+    Gap_pred = Gap[1] * np.sqrt(np.arange(m))
+    
+    # Te_pred = Tr + Gap_pred 
+    Te_pred = Tr_pred + Gap_pred
+    
+    kopt = np.round((2*Tr[0]/(eps+Gap_pred[1]))**(2/3))
+
+    
+    # Correction: the number of participants should start at 1
+    
+    mx=6
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    ax.plot(G+1, Tr, 'ro')
+    ax.plot(G+1, Tr, 'r-', label = 'Meta-training error')
+    ax.fill_between(G+1, (Tr-STre), (Tr+STre), color='red', alpha=0.1)
+
+    ax.plot(G+1, Tr_pred, 'mo')
+    ax.plot(G+1, Tr_pred, 'm-', label = 'Predicted meta-training error')
+
+    ax.plot(G+1, Gap, 'go')
+    ax.plot(G+1, Gap, 'g-', label = 'Generalization gap')
+    
+    ax.plot(G[0:mx]+1, Gap_pred[0:mx], 'co')
+    ax.plot(G[0:mx]+1, Gap_pred[0:mx], 'c-', label = 'Predicted generalization gap')
+    
+    ax.plot(G+1, Te, 'bo')
+    ax.plot(G+1, Te, 'b-', label = 'Meta-test error')
+    ax.fill_between(G+1, (Te-STee), (Te+STee), color='blue', alpha=0.1)
+    
+    ax.plot(G[0:mx]+1, Te_pred[0:mx], 'ko')
+    ax.plot(G[0:mx]+1, Te_pred[0:mx], 'k-', label = 'Predicted meta-test error')
+    
+    
+    ax.set_xlabel('Number of Final phase participants')
+    ax.set_ylabel('Average error of final phase winner')
+
+    ax.legend(loc='best')
+    ax.set_title('%s - Ebar=2SE; <C>=%5.2f; <SE>=%5.2f; k-opt=%d' % (da_name, Correl, Stderr, kopt.astype(int)))
+    #########################
+
+    if m >= 70:
+        plt.legend(loc='lower right')
+        plt.xscale('log')
+    else:
+        plt.legend(loc='best')
+
+    # Save the figure and show
+    plt.tight_layout()
+    plt.show()
+    
+    filename = '{}.png'.format(da_name.lower())
+
+    if save:
+        save_fig(fig, name_expe=name_expe, filename=filename)
+
+
+def plot_overfit_curve_sample_test(da_matrix, num_trials=100, save=True):
+    Ds, Fs, Ps = [], [], []
     for t in range(num_trials):
         # Use a part of data as feedback and the rest as final
         # Use all data to estimate G
@@ -847,207 +944,70 @@ def plot_overfit_curve_sample_test(da_matrix, num_trials=100, save=True):
         D = inv_perm(Das)
         F = inv_perm(Fas)
         P = inv_perm(Pas)
-        Tr, Te = get_ofc_P(D, F, P) ### This is new
-        TR[t, :] = Tr
-        TE[t, :] = Te
-        C[t] = c = pearsonr(D, P)[0]
+        Ds.append(D)
+        Fs.append(F)
+        Ps.append(P)
 
     # Name of the DA matrix
     da_name = da_matrix.name
-
-    ##### Isabelle's code #####
-    Correl = np.mean(C)
-    Tr = np.mean(TR, axis=0)
-    Te = np.mean(TE, axis=0)
-    STr = np.std(TR, axis=0)
-    #print(STr)
-    Stderr = np.mean(STr)
-    STe = np.std(TE, axis=0)
-    #print(STe)
-    STre = 2*STr/np.sqrt(num_trials)
-    STee = 2*STe/np.sqrt(num_trials)
-    Gap = np.abs(Te - Tr)
-    
-    #Tr_pred = Tr[0]*1/(1+np.arange(m))
-    Tr_pred =  np.zeros(Tr.shape)
-    K=1.*Tr[0]/(STr[0]+eps)
-    for mm in np.arange(m):
-        Tr_pred[mm] = K*1./np.sum(1./(STr[0:mm+1]+eps))
-    
-    #s = np.sqrt(np.arange(m))
-    #A = Tr[0]*(1-np.sqrt(m-1))/(eps+Tr[0]-Gap[1]*np.sqrt(m-1))
-    #B = A-1
-    #Gap_pred = (A * Gap[1] * s) / (eps + B + s)
-    
-    Gap_pred = Gap[1] * np.sqrt(np.arange(m))
-    
-    # Te_pred = Tr + Gap_pred 
-    Te_pred = Tr_pred + Gap_pred
-    
-    kopt = np.round((2*Tr[0]/(eps+Gap_pred[1]))**(2/3))
-
-    
-    # Correction: the number of participants should start at 1
-    
-    mx=6
-
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    ax.plot(G+1, Tr, 'ro')
-    ax.plot(G+1, Tr, 'r-', label = 'Meta-training error')
-    ax.fill_between(G+1, (Tr-STre), (Tr+STre), color='red', alpha=0.1)
-
-    ax.plot(G+1, Tr_pred, 'mo')
-    ax.plot(G+1, Tr_pred, 'm-', label = 'Predicted meta-training error')
-
-    ax.plot(G+1, Gap, 'go')
-    ax.plot(G+1, Gap, 'g-', label = 'Generalization gap')
-    
-    ax.plot(G[0:mx]+1, Gap_pred[0:mx], 'co')
-    ax.plot(G[0:mx]+1, Gap_pred[0:mx], 'c-', label = 'Predicted generalization gap')
-    
-    ax.plot(G+1, Te, 'bo')
-    ax.plot(G+1, Te, 'b-', label = 'Meta-test error')
-    ax.fill_between(G+1, (Te-STee), (Te+STee), color='blue', alpha=0.1)
-    
-    ax.plot(G[0:mx]+1, Te_pred[0:mx], 'ko')
-    ax.plot(G[0:mx]+1, Te_pred[0:mx], 'k-', label = 'Predicted meta-test error')
-    
-    
-    ax.set_xlabel('Number of Final phase participants')
-    ax.set_ylabel('Average error of final phase winner')
-
-    ax.legend(loc='best')
-    ax.set_title('%s - Ebar=2SE; <C>=%5.2f; <SE>=%5.2f; k-opt=%d' % (da_name, Correl, Stderr, kopt.astype(int)))
-    #########################
-
-    if da_matrix.name == 'OpenML-Alors':
-        plt.legend(loc='lower right')
-        plt.xscale('log')
-    else:
-        plt.legend(loc='best')
-
-    # Save the figure and show
-    plt.tight_layout()
-    plt.show()
-
     name_expe = 'plot-overfit-curve-sample-test'
-    
-    filename = '{}.png'.format(da_name.lower())
 
-    if save:
-        save_fig(fig, name_expe=name_expe, filename=filename)
+    plot_overfit_curve_DFP(Ds, Fs, Ps, da_name=da_name, name_expe=name_expe)
 
 
 def plot_overfit_curve(da_tr, da_te, num_trials=100, feedback_size=0.5, 
         save=True):
-    eps = np.finfo(float).eps # Machine precision
-    m = len(da_tr.algos)
-    TR = np.zeros((num_trials, m))
-    TE = np.zeros((num_trials, m))
-    C = np.zeros((num_trials,))
-    G = np.arange(m)
-    perfs = da_tr.perfs
+    Ds, Fs, Ps = [], [], []
+    P_perfs = da_te.perfs
+    Pas = get_average_rank(P_perfs).argsort()
+    P = inv_perm(Pas)
     for t in range(num_trials):
         # Use a part of data as feedback and the rest as final
         # Use all data to estimate G
-        da_D, da_F = DAMatrix(perfs=perfs).train_test_split(
+        da_D, da_F = da_tr.train_test_split(
             train_size=feedback_size,
             shuffling=True,
         )
         D_perfs = da_D.perfs
         F_perfs = da_F.perfs
-        P_perfs = da_te.perfs
+        Das = get_average_rank(D_perfs).argsort()
+        Fas = get_average_rank(F_perfs).argsort()
+        D = inv_perm(Das)
+        F = inv_perm(Fas)
+        Ds.append(D)
+        Fs.append(F)
+        Ps.append(P)
+
+    # Name of the DA matrix
+    da_name = da_tr.name[:-11]
+
+    name_expe = 'plot-overfit-curve'
+    
+    plot_overfit_curve_DFP(Ds, Fs, Ps, da_name=da_name, name_expe=name_expe)
+
+
+def plot_ofc_disjoint_tasks(da_matrix, n_tasks_per_split=1):
+    Ds, Fs, Ps = [], [], []
+    perfs = da_matrix.perfs
+    n_datasets = len(da_matrix.datasets)
+    ntps = n_tasks_per_split
+    N = 3 * ntps
+    for i in range(n_datasets // N):
+        D_perfs = perfs[i * N:i * N + ntps]
+        F_perfs = perfs[i * N + ntps:i * N + 2 * ntps]
+        P_perfs = perfs[i * N + 2 * ntps:i * N + 3 * ntps]
         Das = get_average_rank(D_perfs).argsort()
         Fas = get_average_rank(F_perfs).argsort()
         Pas = get_average_rank(P_perfs).argsort()
         D = inv_perm(Das)
         F = inv_perm(Fas)
         P = inv_perm(Pas)
-        Tr, Te = get_ofc_P(D, F, P) ### This is new
-        TR[t, :] = Tr
-        TE[t, :] = Te
-        C[t] = c = pearsonr(D, P)[0]
+        Ds.append(D)
+        Fs.append(F)
+        Ps.append(P)
 
-    # Name of the DA matrix
-    da_name = da_tr.name[:-11]
+    da_name = da_matrix.name
+    name_expe = 'ofc-disjoint-tasks'
 
-    ##### Isabelle's code #####
-    Correl = np.mean(C)
-    Tr = np.mean(TR, axis=0)
-    Te = np.mean(TE, axis=0)
-    STr = np.std(TR, axis=0)
-    #print(STr)
-    Stderr = np.mean(STr)
-    STe = np.std(TE, axis=0)
-    #print(STe)
-    STre = 2*STr/np.sqrt(num_trials)
-    STee = 2*STe/np.sqrt(num_trials)
-    Gap = np.abs(Te - Tr)
-    
-    #Tr_pred = Tr[0]*1/(1+np.arange(m))
-    Tr_pred =  np.zeros(Tr.shape)
-    K=1.*Tr[0]/(STr[0]+eps)
-    for mm in np.arange(m):
-        Tr_pred[mm] = K*1./np.sum(1./(STr[0:mm+1]+eps))
-    
-    #s = np.sqrt(np.arange(m))
-    #A = Tr[0]*(1-np.sqrt(m-1))/(eps+Tr[0]-Gap[1]*np.sqrt(m-1))
-    #B = A-1
-    #Gap_pred = (A * Gap[1] * s) / (eps + B + s)
-    
-    Gap_pred = Gap[1] * np.sqrt(np.arange(m))
-    
-    # Te_pred = Tr + Gap_pred 
-    Te_pred = Tr_pred + Gap_pred
-    
-    kopt = np.round((2*Tr[0]/(eps+Gap_pred[1]))**(2/3))
+    plot_overfit_curve_DFP(Ds, Fs, Ps, da_name=da_name, name_expe=name_expe)
 
-    
-    # Correction: the number of participants should start at 1
-    
-    mx=6
-
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    ax.plot(G+1, Tr, 'ro')
-    ax.plot(G+1, Tr, 'r-', label = 'Meta-training error')
-    ax.fill_between(G+1, (Tr-STre), (Tr+STre), color='red', alpha=0.1)
-
-    ax.plot(G+1, Tr_pred, 'mo')
-    ax.plot(G+1, Tr_pred, 'm-', label = 'Predicted meta-training error')
-
-    ax.plot(G+1, Gap, 'go')
-    ax.plot(G+1, Gap, 'g-', label = 'Generalization gap')
-    
-    ax.plot(G[0:mx]+1, Gap_pred[0:mx], 'co')
-    ax.plot(G[0:mx]+1, Gap_pred[0:mx], 'c-', label = 'Predicted generalization gap')
-    
-    ax.plot(G+1, Te, 'bo')
-    ax.plot(G+1, Te, 'b-', label = 'Meta-test error')
-    ax.fill_between(G+1, (Te-STee), (Te+STee), color='blue', alpha=0.1)
-    
-    ax.plot(G[0:mx]+1, Te_pred[0:mx], 'ko')
-    ax.plot(G[0:mx]+1, Te_pred[0:mx], 'k-', label = 'Predicted meta-test error')
-    
-    
-    ax.set_xlabel('Number of Final phase participants')
-    ax.set_ylabel('Average error of final phase winner')
-
-    ax.legend(loc='best')
-    ax.set_title('%s - Ebar=2SE; <C>=%5.2f; <SE>=%5.2f; k-opt=%d' % (da_name, Correl, Stderr, kopt.astype(int)))
-    #########################
-
-    if da_name == 'OpenML-Alors':
-        plt.xscale('log')
-
-    # Save the figure and show
-    plt.tight_layout()
-    plt.show()
-
-    name_expe = 'plot-overfit-curve'
-    
-    filename = '{}.png'.format(da_name.lower())
-
-    if save:
-        save_fig(fig, name_expe=name_expe, filename=filename)
