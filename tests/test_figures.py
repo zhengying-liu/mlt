@@ -7,6 +7,7 @@ from mlt.data import get_da_matrix_from_real_dataset_dir
 from mlt.data import URVDAMatrix
 from mlt.data import DAMatrix
 from mlt.data import SpecialistDAMatrix
+from mlt.data import get_all_real_datasets_da_matrix
 
 from mlt.figures import plot_score_vs_n_tasks_with_error_bars
 from mlt.figures import plot_score_vs_n_algos_with_error_bars
@@ -15,11 +16,15 @@ from mlt.figures import plot_all_figures
 from mlt.figures import plot_score_vs_n_algos_per_matrix
 from mlt.figures import plot_score_vs_n_tasks_per_matrix
 from mlt.figures import plot_meta_learner_comparison
+from mlt.figures import plot_overfit_curve
+from mlt.figures import plot_overfit_curve_sample_test
 
 from mlt.meta_learner import MeanMetaLearner
 from mlt.meta_learner import TopkRankMetaLearner
 from mlt.meta_learner import FixedKRankMetaLearner
 from mlt.meta_learner import TopPercRankMetaLearner
+from mlt.meta_learner import TopKD
+from mlt.meta_learner import SRM
 
 import os
 import numpy as np
@@ -171,7 +176,17 @@ def test_plot_meta_learner_comparison():
     infty_ml = FixedKRankMetaLearner(k=10**5)
     top10perc_ml = TopPercRankMetaLearner(perc=10)
     cv_ml = TopkRankMetaLearner()
-    meta_learners = [top1_ml, cv_ml, top10_ml,  top10perc_ml, infty_ml]
+    top_k_d = TopKD()
+    srm = SRM()
+    meta_learners = [
+        top1_ml, 
+        cv_ml, 
+        top10_ml,  
+        top10perc_ml, 
+        infty_ml, 
+        top_k_d, 
+        srm,
+        ]
 
     datasets_dir="../datasets"
     dataset_names = ['artificial_r50c20r20', 'AutoDL', 'AutoML', 'OpenML-Alors', 'Statlog']
@@ -206,6 +221,44 @@ def test_plot_meta_learner_comparison():
         plot_meta_learner_comparison(da_tr, da_te, meta_learners, repeat=100)
 
 
+def test_plot_overfit_curve():
+    datasets_dir="../datasets"
+    dataset_names = ['artificial_r50c20r20', 'AutoDL', 'AutoML', 'OpenML-Alors', 'Statlog']
+    ds = [d for d in os.listdir(datasets_dir) if d in set(dataset_names)]
+    da_matrices = []
+    for d in ds:
+        dataset_dir = os.path.join(datasets_dir, d)
+        if os.path.isdir(dataset_dir):
+            da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
+            da_matrices.append(da_matrix)
+    for da_matrix in da_matrices:
+        n_datasets = len(da_matrix.datasets)
+        print("Meta-dataset:", da_matrix.name)
+        print("n_datasets:", n_datasets)
+        da_tr, da_te = da_matrix.train_test_split()
+        plot_overfit_curve(da_tr, da_te)
+
+
+def test_SRM():
+    da_matrices = get_all_real_datasets_da_matrix()
+    for da_matrix in da_matrices:
+        n_datasets = len(da_matrix.datasets)
+        print("Meta-dataset:", da_matrix.name)
+        print("n_datasets:", n_datasets)
+        da_tr, da_te = da_matrix.train_test_split()
+        plot_overfit_curve(da_tr, da_te)
+
+
+def test_plot_overfit_curve_sample_test():
+    da_matrices = get_all_real_datasets_da_matrix()
+    for da_matrix in da_matrices:
+        n_datasets = len(da_matrix.datasets)
+        print("Meta-dataset:", da_matrix.name)
+        print("n_datasets:", n_datasets)
+        plot_overfit_curve_sample_test(da_matrix)
+
+
+
 if __name__ == '__main__':
     # test_plot_score_vs_n_tasks_with_error_bars()
     # test_plot_score_vs_n_algos_with_error_bars()
@@ -216,3 +269,5 @@ if __name__ == '__main__':
     # test_plot_meta_learner_comparison()
     # test_plot_score_vs_n_algos_per_matrix_on_real_datasets()
     # test_plot_score_vs_n_tasks_per_matrix_on_real_datasets()
+    # test_plot_overfit_curve()
+    test_plot_overfit_curve_sample_test()

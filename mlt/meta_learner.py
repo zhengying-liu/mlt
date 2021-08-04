@@ -15,6 +15,7 @@ from mlt.data import CopulaCliqueDAMatrix
 from mlt.utils import save_fig
 from mlt.utils import get_theoretical_error_bar
 from mlt.utils import get_average_rank
+from mlt.utils import exclude_indices
 
 from scipy.stats import pearsonr
 
@@ -535,6 +536,7 @@ class PredefinedKRankMetaLearner(DefaultFitMetaLearner):
                  plot=False, feedback_size=0.5, shuffling=True):
         """
         Args:
+          excluded_indices: list, row indices excluded for validation
           plot: boolean, if plot a figure
           n_feedback: int, first `n_feedback` examples will be used as 
             "feedback phase" data
@@ -546,15 +548,18 @@ class PredefinedKRankMetaLearner(DefaultFitMetaLearner):
         n_datasets = len(da_matrix.datasets) - n_excl
 
         # Exclude the indices for validation
-        if excluded_indices is None:
-            excluded_indices = {}
-        elif not isinstance(excluded_indices, range):
-            excluded_indices = set(excluded_indices)
-        perfs = []
-        for i, row in enumerate(da_matrix.perfs):
-            if not i in excluded_indices:
-                perfs.append(row)
-        perfs = np.array(perfs)
+        perfs, perfs_valid = exclude_indices(
+            da_matrix.perfs, 
+            excluded_indices)
+        # if excluded_indices is None:
+        #     excluded_indices = {}
+        # elif not isinstance(excluded_indices, range):
+        #     excluded_indices = set(excluded_indices)
+        # perfs = []
+        # for i, row in enumerate(da_matrix.perfs):
+        #     if not i in excluded_indices:
+        #         perfs.append(row)
+        # perfs = np.array(perfs)
         
         # Set k
         k = self.k
@@ -616,6 +621,83 @@ class TopPercRankMetaLearner(PredefinedKRankMetaLearner):
         n_algos = len(da_matrix.algos)
         k = int(n_algos * self.perc / 100)
         return k
+
+
+class TopKD(DefaultFitMetaLearner):
+    """top-k-d method according to AISTATS 2022 paper.
+    """
+    k = 2
+
+    def meta_fit(self, da_matrix, feedback_size=0.5, shuffling=False):
+        self.name = 'top-k-d'
+
+        # Use a part of data as feedback and the rest as final
+        da_tr, da_te = DAMatrix(perfs=da_matrix.perfs).train_test_split(
+            train_size=feedback_size,
+            shuffling=shuffling,
+        )
+        feedback_perfs = np.array(da_tr.perfs)
+        final_perfs = np.array(da_te.perfs)
+        d = np.mean(feedback_perfs, axis=0)
+        f = np.mean(final_perfs, axis=0)
+        perm = np.argsort(-d)
+
+        # Get k
+        k = self.k
+        top_k_d = perm[:k]
+        w_k = top_k_d[np.argmax(f[top_k_d])]
+
+        self.indices_algo_to_reveal = [w_k]
+
+
+class SRM(DefaultFitMetaLearner):
+    """Structural Risk Minimization MetaLearner according to AISTATS 2022 
+    paper.
+    """
+
+    def meta_fit(self, da_matrix, feedback_size=0.5, shuffling=False, 
+            plot=True):
+        self.name = 'SRM'
+
+        # Use a part of data as feedback and the rest as final
+        da_tr, da_te = DAMatrix(perfs=da_matrix.perfs).train_test_split(
+            train_size=feedback_size,
+            shuffling=shuffling,
+        )
+        feedback_perfs = np.array(da_tr.perfs)
+        final_perfs = np.array(da_te.perfs)
+        d = np.mean(feedback_perfs, axis=0)
+        f = np.mean(final_perfs, axis=0)
+        perm_d = np.argsort(-d)
+        perm_f = np.argsort(-f)
+
+        top_2_d = perm_d[:2]
+        fw2 = f[top_2_d[np.argmax(f[top_2_d])]]
+        top_2_f = perm_f[:2]
+        dw2 = d[top_2_f[np.argmax(d[top_2_f])]]
+        
+        m = len(da_matrix.algos)
+        fw = np.zeros(m)
+        gw = np.zeros(m)
+        for k in range(1, m + 1):
+            top_k_d = perm_d[:k]
+            w_k = top_k_d[np.argmax(f[top_k_d])]
+            fw[k - 1] = f[w_k]
+            gw[k - 1] = fw[k - 1] + abs(dw2 - fw2) * np.sqrt(k - 1)
+
+        if plot:
+            fig = plt.figure()
+            plt.plot(gw, label='gw')
+            plt.plot(fw, label='fw')
+            plt.legend()
+            plt.show()
+            save_fig(fig, name_expe='srm')
+
+        k_star = np.argmax(gw) + 1
+        self.k = k_star
+        top_k_d = perm_d[:k_star]
+        w_k_star = top_k_d[np.argmax(f[top_k_d])]
+        self.indices_algo_to_reveal = [w_k_star]
 
 
 def get_conditional_prob(perfs, i_target=None, cond_cols=None, cond_value=0):

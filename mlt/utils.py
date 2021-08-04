@@ -97,3 +97,43 @@ def get_average_rank(perfs, negative_score=False):
         rankings[i] = ranking
     avg_rank = rankings.mean(axis=0) / n_algos * 100
     return avg_rank
+
+
+def exclude_indices(matrix, excluded_indices):
+    if excluded_indices is None:
+        excluded_indices = {}
+    elif not isinstance(exclude_indices, range):
+        excluded_indices = set(excluded_indices)
+    remaining_matrix = []
+    excluded_matrix = []
+    for i, row in enumerate(matrix):
+        if not i in excluded_indices:
+            remaining_matrix.append(row)
+        else:
+            excluded_matrix.append(row)
+    remaining_matrix = np.array(remaining_matrix)
+    excluded_matrix = np.array(excluded_matrix)
+    return remaining_matrix, excluded_matrix
+
+
+def inv_perm(perm):
+    """Invert a permutation.
+    
+    Args:
+      perm: a list of length `n`, containing a permutation of integers 0 to n-1. 
+
+    Returns:
+      a permutation of the same type, which is the inverse of the input.
+    """
+    n = len(perm)
+    inv =  [None] * n
+    seen_idx = set()
+    for i in range(n):
+        if perm[i] in seen_idx or perm[i] >= n:
+            raise ValueError("The input is not a valid permutation!")
+        inv[perm[i]] = i
+        seen_idx.add(perm[i])
+    # Return a NumPy array if the input is one
+    if isinstance(perm, np.ndarray):
+        inv = np.array(inv)
+    return inv

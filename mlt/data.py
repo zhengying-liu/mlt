@@ -1,6 +1,7 @@
 # Author: Zhengying Liu
 # Creation date: 4 Dec 2020
 
+from mlt import ROOT_DIR
 from mlt.utils import download_file_from_google_drive
 from scipy.stats import ortho_group
 
@@ -614,6 +615,9 @@ class BetaAlgo(object):
     def __repr__(self):
         return "BetaAlgo(name={}, code={})".format(self.name, self.code)
 
+    def __str__(self):
+        return str(self.name)
+
 
 class BetaDataset(object):
 
@@ -664,6 +668,22 @@ def get_da_matrix_from_real_dataset_dir(dataset_dir):
         return da_matrix
     else:
         raise ValueError("Not a directory: {}".format(dataset_dir))
+
+
+def get_all_real_datasets_da_matrix(datasets_dir=None):
+    if datasets_dir is None:
+        datasets_dir = os.path.join(ROOT_DIR, os.pardir, 'datasets')
+        print("No datasets_dir given. Using datasets_dir={}"\
+            .format(datasets_dir))
+    dataset_names = ['artificial_r50c20r20', 'AutoDL', 'AutoML', 'OpenML-Alors', 'Statlog']
+    ds = [d for d in os.listdir(datasets_dir) if d in set(dataset_names)]
+    da_matrices = []
+    for d in ds:
+        dataset_dir = os.path.join(datasets_dir, d)
+        if os.path.isdir(dataset_dir):
+            da_matrix = get_da_matrix_from_real_dataset_dir(dataset_dir)
+            da_matrices.append(da_matrix)
+    return da_matrices
 
 
 def download_autodl_data(filename='all_results.csv', save_dir=None):
