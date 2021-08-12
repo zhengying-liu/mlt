@@ -5,6 +5,8 @@ import numpy as np
 import os
 import requests
 
+from mlt import ROOT_DIR
+
 def download_file_from_google_drive(id, destination):
     """Source:
         https://stackoverflow.com/questions/25010369/wget-curl-large-file-from-google-drive/39225039#39225039
@@ -38,8 +40,9 @@ def download_file_from_google_drive(id, destination):
     save_response_content(response, destination)    
 
 
-def save_fig(fig, name_expe=None, results_dir='../results',
-             filename=None):
+def save_fig(fig, name_expe=None, results_dir=None, filename=None):
+    if results_dir is None:
+        results_dir = os.path.join(ROOT_DIR, os.pardir, 'results')
     if filename is None:
         if name_expe is None:
             filename = 'learning-curves.jpg'
@@ -73,7 +76,7 @@ def get_ranking(li, negative_score=False):
     return ranking
 
 
-def get_average_rank(perfs, negative_score=False):
+def get_average_rank(perfs, negative_score=False, normalized=False):
     """
     Args:
       perfs: numpy.ndarray, performance matrix of shape (n_datasets, n_algos)
@@ -95,7 +98,10 @@ def get_average_rank(perfs, negative_score=False):
     for i, row in enumerate(perfs):
         ranking = get_ranking(row, negative_score=negative_score)
         rankings[i] = ranking
-    avg_rank = rankings.mean(axis=0) / n_algos * 100
+    if normalized:
+        avg_rank = rankings.mean(axis=0) / n_algos
+    else:
+        avg_rank = rankings.mean(axis=0)
     return avg_rank
 
 
