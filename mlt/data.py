@@ -25,17 +25,21 @@ class DAMatrix(object):
     on i-th dataset.
     """
 
-    def __init__(self, perfs=None, datasets=None, algos=None, name=None):
+    def __init__(self, perfs=None, datasets=None, algos=None, name=None, 
+            negative_score=False):
         """
         Args:
           perfs: a 2-D NumPy array of shape (`n_datasets`, `n_algos`)
           datasets: a list of BetaDataset objects
           algos: a list of BetaAlgo objects
           name: str, name of the DAMatrix
+          negative_score: boolean. If True, the smaller performance score is,
+            the better.
         """
         self.datasets = datasets if datasets else []
         self.algos = algos if algos else []
         self.name = str(name)
+        self.negative_score = negative_score
 
         # Initialize empty performance matrix if not provided
         if perfs is None:
@@ -149,6 +153,7 @@ class DAMatrix(object):
 
 
     def train_test_split(self, train_size=0.5, shuffling=True):
+        """Split the matrix """
         n_datasets = len(self.datasets)
 
         if isinstance(train_size, float):
@@ -178,6 +183,10 @@ class DAMatrix(object):
         name = self.name + "-meta-test"
         da_meta_test = DAMatrix(perfs=perfs, datasets=datasets, 
                                 algos=algos, name=name)
+        # Transfer info on the ground truth / best algorithm
+        if hasattr(self, 'best_algo'):
+            da_meta_train.best_algo = self.best_algo
+            da_meta_test.best_algo = self.best_algo
         
         return da_meta_train, da_meta_test
 
@@ -577,6 +586,69 @@ class USVDAMatrix(DAMatrix):
         datasets, algos = get_anonymized_lists(n_datasets, n_algos)
 
         super().__init__(perfs=perfs, datasets=datasets, algos=algos, name=name)
+
+
+###################################################
+##### Trigonometric Polynomials Meta-datasets #####
+###################################################
+
+class TrigonometricPolynomial(object):
+    
+    def __init__(self, coeffs):
+        """Real-valued function defined by trigonometric sums with `coeffs` as coefficents. If
+            coeffs = [a0, a1, b1, a2, b2, ...],
+        then the defined function is given by
+            a0 + a1*cos(2*pi*x) + b1*sin(2*pi*x) + a2*cos(2*2*pi*x) + b2*sin(2*2*pi*x) + ...
+        or
+            a0 + sum_k [a_k*cos(2*k*pi*x) + b_k*sin(2*k*pi*x)].
+        
+        Args:
+          coeffs: list of float, the coefficients of the trigonometric polynomial.
+        """
+        self.coeffs = coeffs
+        
+    def __call__(self, x):
+        if len(self.coeffs) == 0:
+            return 0
+        res = self.coeffs[0]    # a0
+        le = len(self.coeffs)
+        for k in range(1, le//2 + 1):
+            ak = self.coeffs[2 * k - 1]
+            bk = self.coeffs[2 * k] if 2 * k < le else 0
+            res += ak * np.cos(2 * k * np.pi * x) + bk * np.sin(2 * k * np.pi * x)
+        return res
+
+
+def sample_trigo_polyn(A=20, K=5):
+    funcs = [None] * A
+    for a in range(A):
+        coeffs = np.random.random(2 * K + 1)
+        scale = 1 / (np.arange(2 * K + 1) + 1)
+        coeffs *= scale
+        func = TrigonometricPolynomial(coeffs)
+        funcs[a] = func
+    return funcs
+
+
+class TrigonometricPolynomialDAMatrix(DAMatrix):
+
+    def __init__(self, n_datasets=2000, n_algos=20, name="TrigoPolyn"):
+        funcs = sample_trigo_polyn(A=n_algos)
+        self.funcs = funcs
+        perfs = np.zeros((n_datasets, n_algos))
+        for i_d in range(n_datasets):
+            x = np.random.rand()
+            for i_a in range(n_algos):
+                perfs[i_d, i_a] = funcs[i_a](x)
+        
+        expected_values = [f.coeffs[0] for f in funcs]
+        self.best_algo = np.argmax(expected_values)
+
+        datasets, algos = get_anonymized_lists(n_datasets, n_algos)
+        super().__init__(perfs=perfs, datasets=datasets, algos=algos, name=name)
+
+    def get_funcs(self):
+        return self.funcs
 
 
 class DepUDirichletDistributionDAMatrix(DAMatrix):
