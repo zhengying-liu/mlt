@@ -4,6 +4,7 @@
 from mlt.data import DAMatrix
 from mlt.data import get_da_matrix_from_real_dataset_dir
 from mlt.meta_learner import MeanMetaLearner
+from mlt.metric import ArgmaxMeanMetric
 from mlt.utils import save_fig
 from mlt.utils import get_theoretical_error_bar
 from mlt.utils import get_average_rank
@@ -1011,3 +1012,66 @@ def plot_ofc_disjoint_tasks(da_matrix, n_tasks_per_split=1):
 
     plot_overfit_curve_DFP(Ds, Fs, Ps, da_name=da_name, name_expe=name_expe)
 
+
+def plot_meta_learner_comparison_sample_meta_test(
+        da_matrix, 
+        meta_learners, 
+        metric=None, 
+        repeat=25,
+        train_size=0.5,
+        save=False):
+    """Plot comparison histogram of `meta_learners` on `da_matrix` for the `metric`."""
+    if metric is None:
+        metric = ArgmaxMeanMetric()
+    n_algos = len(da_matrix.algos)
+    
+    means = []
+    stds = []
+    for i, meta_learner in enumerate(meta_learners):
+        scores = []
+        for j in range(repeat):
+            da_tr, da_te = da_matrix.train_test_split(
+                train_size=train_size,
+                shuffling=True
+            )
+            
+            meta_learner.meta_fit(da_tr)
+            dist_pred = meta_learner.rec_algo()
+            score = metric(dist_pred, da_te)
+            scores.append(score)
+        mean = np.mean(scores)
+        std = np.std(scores)
+        means.append(mean)
+        stds.append(std)
+    
+    da_name = da_matrix.name
+    
+    x_pos = np.arange(len(meta_learners))
+
+    # Build the plot
+    fig, ax = plt.subplots()
+    stds = np.array(stds) / np.sqrt(repeat)
+    ax.bar(x_pos, means, yerr=stds, align='center', alpha=0.5, ecolor='black', capsize=10)
+    ylabel = metric.name
+    ax.set_ylabel(ylabel)
+    ax.set_xticks(x_pos)
+    names = [meta_learner.name for meta_learner in meta_learners]
+    ax.set_xticklabels(names)
+    for i in range(len(meta_learners)):
+        x = x_pos[i]
+        y = means[i] * 0.9
+        s = '{:.3f}±{:.3f}'.format(means[i], stds[i])
+        plt.text(x, y, s)
+    
+    title = "Comparison on {} (n_algos={}) - Ebar: 1 sigma".format(da_name, n_algos)
+    ax.set_title(title)
+
+    # Save the figure and show
+    plt.tight_layout()
+    plt.show()
+
+    name_expe = 'meta-learner-comparison-sample-test'
+    filename = '{}.png'.format(da_name.lower())
+
+    if save:
+        save_fig(fig, name_expe=name_expe, filename=filename)

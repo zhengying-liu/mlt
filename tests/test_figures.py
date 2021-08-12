@@ -8,6 +8,7 @@ from mlt.data import URVDAMatrix
 from mlt.data import DAMatrix
 from mlt.data import SpecialistDAMatrix
 from mlt.data import get_all_real_datasets_da_matrix
+from mlt.data import TrigonometricPolynomialDAMatrix
 
 from mlt.figures import plot_score_vs_n_tasks_with_error_bars
 from mlt.figures import plot_score_vs_n_algos_with_error_bars
@@ -19,6 +20,7 @@ from mlt.figures import plot_meta_learner_comparison
 from mlt.figures import plot_overfit_curve
 from mlt.figures import plot_overfit_curve_sample_test
 from mlt.figures import plot_ofc_disjoint_tasks
+from mlt.figures import plot_meta_learner_comparison_sample_meta_test
 
 from mlt.meta_learner import MeanMetaLearner
 from mlt.meta_learner import TopkRankMetaLearner
@@ -26,6 +28,9 @@ from mlt.meta_learner import FixedKRankMetaLearner
 from mlt.meta_learner import TopPercRankMetaLearner
 from mlt.meta_learner import TopKD
 from mlt.meta_learner import SRM
+from mlt.meta_learner import CountMaxMetaLearner
+
+from mlt.metric import ArgmaxMeanMetric
 
 import os
 import numpy as np
@@ -278,6 +283,41 @@ def test_plot_ofc_disjoint_tasks():
         plot_ofc_disjoint_tasks(da_matrix, n_tasks_per_split=5)
 
 
+def test_plot_meta_learner_comparison_sample_meta_test():
+    # Meta-learners
+    ml_mean = MeanMetaLearner(name='mean')
+    ml_srm = SRM()
+    ml_cm = CountMaxMetaLearner()
+    ml_topk = TopkRankMetaLearner()
+    meta_learners = [
+        ml_mean,
+        ml_srm,
+        ml_cm,
+        ml_topk,
+    ]
+    # Metric
+    metric = ArgmaxMeanMetric()
+    # Configurations
+    n_datasets = 1000
+    n_algos = 20
+    repeat = 100
+    train_size = 0.1
+    # Use TrigoPolyn
+    da_matrices = []
+    for _ in range(5):
+        da_matrix = TrigonometricPolynomialDAMatrix(n_datasets=n_datasets, n_algos=n_algos)
+        da_matrices.append(da_matrix)
+
+        plot_meta_learner_comparison_sample_meta_test(
+            da_matrix, 
+            meta_learners, 
+            metric=metric,
+            repeat=repeat,
+            train_size=train_size,
+            save=True,
+        )
+
+
 if __name__ == '__main__':
     # test_plot_score_vs_n_tasks_with_error_bars()
     # test_plot_score_vs_n_algos_with_error_bars()
@@ -290,4 +330,5 @@ if __name__ == '__main__':
     # test_plot_score_vs_n_tasks_per_matrix_on_real_datasets()
     # test_plot_overfit_curve()
     # test_plot_overfit_curve_sample_test()
-    test_plot_ofc_disjoint_tasks()
+    # test_plot_ofc_disjoint_tasks()
+    test_plot_meta_learner_comparison_sample_meta_test()
