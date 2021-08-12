@@ -35,7 +35,7 @@ class S0A1MetaLearner(object):
         self.history = history if history is None else []
         self.name = name
 
-    def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None):
+    def meta_fit(self, da_matrix: DAMatrix):
         raise NotImplementedError
 
     def fit(self, da_matrix: DAMatrix, i_dataset: int):
@@ -45,6 +45,17 @@ class S0A1MetaLearner(object):
         """
         raise NotImplementedError
 
+    def rec_algo(self):
+        """Recommend one algorithm to try first during meta-test. This should
+        be called only after calling `self.meta_fit`.
+
+        Returns:
+          int or list of float. int for the index of the recommended algorithm.
+            list of float for a distribution on the algorithms.
+        """
+        raise NotImplementedError
+
+
 
 class DefaultFitMetaLearner(S0A1MetaLearner):
 
@@ -52,6 +63,13 @@ class DefaultFitMetaLearner(S0A1MetaLearner):
         for i_algo in self.indices_algo_to_reveal:
             perf = da_matrix.eval(i_dataset, i_algo)
             self.history.append((i_dataset, i_algo, perf))
+
+    def rec_algo(self):
+        try:
+            return self.indices_algo_to_reveal[0]
+        except:
+            raise RuntimeError("`self.rec_algo` should be called only after " +
+                "calling `self.meta_fit`.")
 
 
 class RandomSearchMetaLearner(S0A1MetaLearner):
@@ -94,7 +112,7 @@ class OnceRandomSearchMetaLearner(S0A1MetaLearner):
             self.history.append((i_dataset, i_algo, perf))
 
 
-class MeanMetaLearner(S0A1MetaLearner):
+class MeanMetaLearner(DefaultFitMetaLearner):
 
     def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None):
         self.name = 'mean'
@@ -117,11 +135,6 @@ class MeanMetaLearner(S0A1MetaLearner):
         if da_matrix.algos[0] != "Algorithm 0":
             algos_to_reveal = [da_matrix.algos[i] for i in self.indices_algo_to_reveal]
             # print("Mean algorithms to reveal:", algos_to_reveal)
-
-    def fit(self, da_matrix: DAMatrix, i_dataset: int):
-        for i_algo in self.indices_algo_to_reveal:
-            perf = da_matrix.eval(i_dataset, i_algo)
-            self.history.append((i_dataset, i_algo, perf))
 
 
 class GreedyMetaLearner(S0A1MetaLearner):
@@ -313,7 +326,7 @@ def get_ofc(D, F, G, debug_=False):
     return Tr, Te
 
 
-class TopkRankMetaLearner(S0A1MetaLearner):
+class TopkRankMetaLearner(DefaultFitMetaLearner):
     """The `meta_fit` method of this class may not give a full ranking."""
 
     def meta_fit(self, da_matrix: DAMatrix, excluded_indices: List=None, 
@@ -518,13 +531,6 @@ class TopkRankMetaLearner(S0A1MetaLearner):
             filename = "{}-{}-{}".format(name, name_expe, date_str)
             save_fig(fig, name_expe=name_expe, filename=filename)
 
-        
-            
-    def fit(self, da_matrix: DAMatrix, i_dataset: int):
-        for i_algo in self.indices_algo_to_reveal:
-            perf = da_matrix.eval(i_dataset, i_algo)
-            self.history.append((i_dataset, i_algo, perf))
-
 
 class PredefinedKRankMetaLearner(DefaultFitMetaLearner):
     """The `meta_fit` method of this class may not give a full ranking."""
@@ -656,7 +662,7 @@ class SRM(DefaultFitMetaLearner):
     """
 
     def meta_fit(self, da_matrix, feedback_size=0.5, shuffling=False, 
-            plot=True):
+            plot=False):
         self.name = 'SRM'
 
         # Use a part of data as feedback and the rest as final
@@ -699,6 +705,29 @@ class SRM(DefaultFitMetaLearner):
         w_k_star = top_k_d[np.argmax(f[top_k_d])]
         self.indices_algo_to_reveal = [w_k_star]
 
+
+class CountMaxMetaLearner(DefaultFitMetaLearner):
+    
+    def meta_fit(self, da_matrix: DAMatrix):
+        self.name = 'count-max'
+        
+        n_algos = len(da_matrix.algos)
+        # Count the number of times that each algorithm attains the best
+        argmaxs = da_matrix.perfs.argmax(axis=-1)
+        counter = np.zeros(n_algos, dtype=int)
+        for a in argmaxs:
+            counter[a] += 1
+        self.dist_emp = counter / counter.sum()
+        i_hat = self.dist_emp.argmax()
+        self.indices_algo_to_reveal = [i_hat]
+        
+    def rec_algo(self):
+        return self.dist_emp
+
+
+######################################################
+################# Helper Functions ###################
+######################################################
 
 def get_conditional_prob(perfs, i_target=None, cond_cols=None, cond_value=0):
     if cond_cols is None:
