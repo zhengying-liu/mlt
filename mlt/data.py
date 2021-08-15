@@ -747,6 +747,15 @@ def get_da_matrix_from_real_dataset_dir(dataset_dir):
 
 
 def get_all_real_datasets_da_matrix(datasets_dir=None):
+    """Get DA matrices for the datasets:
+        - artificial_r50c20r20
+        - AutoDL
+        - AutoML
+        - OpenML-Alors
+        - Statlog
+    You need to guarantee that these datasets are indeed contained in
+    `datasets_dir`.
+    """
     if datasets_dir is None:
         datasets_dir = os.path.join(ROOT_DIR, os.pardir, 'datasets')
         print("No datasets_dir given. Using datasets_dir={}"\
