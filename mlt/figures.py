@@ -1037,7 +1037,8 @@ def plot_meta_learner_comparison_sample_meta_test(
         metric=None, 
         repeat=25,
         train_size=0.5,
-        save=False):
+        save=False,
+        show=True):
     """Plot comparison histogram of `meta_learners` on `da_matrix` for the `metric`."""
     if metric is None:
         metric = ArgmaxMeanMetric()
@@ -1086,7 +1087,8 @@ def plot_meta_learner_comparison_sample_meta_test(
 
     # Save the figure and show
     plt.tight_layout()
-    plt.show()
+    if show:
+        plt.show()
 
     name_expe = 'meta-learner-comparison-sample-test'
     filename = '{}.png'.format(da_name.lower())

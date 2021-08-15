@@ -9,6 +9,7 @@ from mlt.data import DAMatrix
 from mlt.data import SpecialistDAMatrix
 from mlt.data import get_all_real_datasets_da_matrix
 from mlt.data import TrigonometricPolynomialDAMatrix
+from mlt.data import parse_cepairs_data
 
 from mlt.figures import plot_score_vs_n_tasks_with_error_bars
 from mlt.figures import plot_score_vs_n_algos_with_error_bars
@@ -29,6 +30,7 @@ from mlt.meta_learner import TopPercRankMetaLearner
 from mlt.meta_learner import TopKD
 from mlt.meta_learner import SRM
 from mlt.meta_learner import CountMaxMetaLearner
+from mlt.meta_learner import SGDMetaLearner
 
 from mlt.metric import ArgmaxMeanMetric
 
@@ -289,25 +291,40 @@ def test_plot_meta_learner_comparison_sample_meta_test():
     ml_srm = SRM()
     ml_cm = CountMaxMetaLearner()
     ml_topk = TopkRankMetaLearner()
+    ml_sgd = SGDMetaLearner()
     meta_learners = [
         ml_mean,
         ml_srm,
         ml_cm,
         ml_topk,
+        ml_sgd,
     ]
     # Metric
     metric = ArgmaxMeanMetric()
     # Configurations
     n_datasets = 1000
     n_algos = 20
-    repeat = 100
-    train_size = 0.1
+    repeat = 10
+    train_size = 0.3
     # Use TrigoPolyn
     da_matrices = []
-    for _ in range(5):
-        da_matrix = TrigonometricPolynomialDAMatrix(n_datasets=n_datasets, n_algos=n_algos)
+    for i in range(5):
+        da_matrix = TrigonometricPolynomialDAMatrix(
+            n_datasets=n_datasets, 
+            n_algos=n_algos,
+            name='TrigoPolyn-{}'.format(i))
         da_matrices.append(da_matrix)
 
+        
+    # Real datasets 
+    real_datasets = get_all_real_datasets_da_matrix()
+    da_matrices += real_datasets
+
+    # CEpairs 
+    da_cepairs = parse_cepairs_data()
+    da_matrices.append(da_cepairs)
+
+    for da_matrix in da_matrices:
         plot_meta_learner_comparison_sample_meta_test(
             da_matrix, 
             meta_learners, 
@@ -315,6 +332,7 @@ def test_plot_meta_learner_comparison_sample_meta_test():
             repeat=repeat,
             train_size=train_size,
             save=True,
+            show=False,
         )
 
 

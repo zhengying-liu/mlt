@@ -10,6 +10,10 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 import os
 
+# PyTorch for SGDMetaLearner
+import torch
+from torch.utils.data import DataLoader
+
 from mlt.data import DAMatrix
 from mlt.data import CopulaCliqueDAMatrix
 from mlt.data import parse_cepairs_data
@@ -724,6 +728,52 @@ class CountMaxMetaLearner(DefaultFitMetaLearner):
         
     def rec_algo(self):
         return self.dist_emp
+
+
+class SGDMetaLearner(DefaultFitMetaLearner):
+    
+    def meta_fit(self, da_matrix: DAMatrix, lr=1e-1, n_epochs=40, batch_size=5):
+        self.name = 'sgd'
+        n_algos = len(da_matrix.algos)
+        # Get cpu or gpu device for training.
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Weights for dist_pred
+        self.logits = torch.zeros(n_algos, requires_grad=True)
+        w = self.logits
+        
+        def loss_fn(X): 
+            X = X.to(device)
+            # Compute prediction error
+            X = torch.tensor(X, dtype=torch.float32)
+            loss = - torch.softmax(w, dim=-1).dot(X.mean(axis=0))
+            if w.grad is not None:
+                w.grad.data.zero_()
+            loss.backward()
+            return loss.data
+
+        def optimize(learning_rate):
+            w.data -= learning_rate * w.grad.data
+
+        def train(dataloader):
+            size = len(dataloader.dataset)
+            for i, X in enumerate(dataloader):
+                loss = loss_fn(X)
+                optimize(lr)
+                if i % 100 == 0:
+                    loss, current = loss.item(), i * len(X)
+        
+        # Meta-training
+        train_dataloader = DataLoader(
+            da_matrix.perfs, 
+            batch_size=batch_size, 
+            shuffle=True)
+        for t in range(n_epochs):
+            train(train_dataloader)
+        
+    def rec_algo(self):
+        dist_pred = torch.softmax(self.logits, dim=-1).detach().numpy()
+        return dist_pred
+        
 
 
 ######################################################
