@@ -10,11 +10,11 @@ from mlt.data import TransposeDirichletDistributionDAMatrix
 from mlt.data import URVDAMatrix
 from mlt.data import USVDAMatrix
 from mlt.data import TrigonometricPolynomialDAMatrix
-
 from mlt.data import download_autodl_data, parse_autodl_data
 from mlt.data import plot_error_bars_empirical_vs_theoretical
 from mlt.data import to_df_for_cd_diagram
 from mlt.data import get_da_matrix_from_real_dataset_dir
+from mlt.data import parse_cepairs_data
 
 from mlt.figures import inspect_da_matrix
 
@@ -127,6 +127,11 @@ def test_TrigonometricPolynomialDAMatrix():
     inspect_da_matrix(da_matrix)
 
 
+def test_parse_cepairs_data():
+    da_matrix = parse_cepairs_data()
+    inspect_da_matrix(da_matrix)
+
+
 if __name__ == '__main__':
     # test_nfldamatrix()
     # test_binarized_mg()
@@ -142,4 +147,5 @@ if __name__ == '__main__':
     # test_TransposeDirichletDistributionDAMatrix()
     # test_URVDAMatrix()
     # test_USVDAMatrix()
-    test_TrigonometricPolynomialDAMatrix()
+    # test_TrigonometricPolynomialDAMatrix()
+    test_parse_cepairs_data()

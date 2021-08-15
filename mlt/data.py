@@ -632,8 +632,12 @@ def sample_trigo_polyn(A=20, K=5):
 
 class TrigonometricPolynomialDAMatrix(DAMatrix):
 
-    def __init__(self, n_datasets=2000, n_algos=20, name="TrigoPolyn"):
-        funcs = sample_trigo_polyn(A=n_algos)
+    def __init__(self, funcs=None, n_datasets=2000, n_algos=20, 
+            name="TrigoPolyn"):
+        if funcs is None:
+            funcs = sample_trigo_polyn(A=n_algos)
+        else:
+            n_algos = len(funcs)
         self.funcs = funcs
         perfs = np.zeros((n_datasets, n_algos))
         for i_d in range(n_datasets):
@@ -801,6 +805,22 @@ def parse_autodl_data(filepath=None, save=False):
     # name='AutoDL-{}'.format(phase)
     name = 'AutoDL'
     da_matrix = DAMatrix(perfs=perfs, datasets=datasets, 
+                         algos=algos, name=name)
+    if save:
+        da_matrix.save(path_to_dir=os.path.dirname(filepath))
+    return da_matrix
+
+
+def parse_cepairs_data(filepath=None, save=False):
+    if filepath is None:
+        filepath = os.path.join(ROOT_DIR, os.pardir, 
+            'datasets', 'CEpairs', 'error_BER_withoutNa.csv')
+    df = pd.read_csv(filepath, index_col=0)
+    algos = [BetaAlgo(name=name_algo) for name_algo in df.columns]
+    datasets = [BetaDataset(name=str(idx_dataset)) for idx_dataset in df.index]
+    perfs = np.array(df)
+    name = 'CEpairs'
+    da_matrix = DAMatrix(perfs=perfs, datasets=datasets,
                          algos=algos, name=name)
     if save:
         da_matrix.save(path_to_dir=os.path.dirname(filepath))

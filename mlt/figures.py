@@ -9,6 +9,7 @@ from mlt.utils import save_fig
 from mlt.utils import get_theoretical_error_bar
 from mlt.utils import get_average_rank
 from mlt.utils import inv_perm
+from mlt.utils import get_default_results_dir
 
 from scipy.stats import pearsonr
 
@@ -49,7 +50,19 @@ def plot_curve_with_error_bars(li_mean, li_std, fig=None, label=None, xs=None, *
     return fig
 
 
-def inspect_da_matrix(da_matrix, results_dir="../results", save=True):
+def inspect_da_matrix(da_matrix, results_dir="../results", save=True, 
+        perfs_corr=False,
+        algos_corr=False,
+        tasks_corr=False):
+    """Inspect DA matrix. Plot the mean and std of the performance of each 
+    algorithm. Plot cluster map for:
+        - perfomance correlation
+        - algorithm correlation
+        - task correlation
+    if the corresponding argument is `True`.
+    """
+    if results_dir is None:
+        results_dir = get_default_results_dir()
     perfs = np.array(da_matrix.perfs)
     li_mean = np.mean(perfs, axis=0)
     li_std = np.std(perfs, axis=0)
@@ -62,28 +75,33 @@ def inspect_da_matrix(da_matrix, results_dir="../results", save=True):
     assert n_algos == perfs.shape[1]
     title = "{} (n_datasets={}, n_algos={})".format(name, n_datasets, n_algos) 
     plt.title(title)
+    name_expe = 'inspect-da-matrix'
     if save:
         filename = "mean-std-algos-{}".format(name)
-        save_fig(fig, results_dir=results_dir, filename=filename)
+        save_fig(fig, name_expe=name_expe, 
+            results_dir=results_dir, filename=filename)
 
-    heatmap = sns.clustermap(perfs, metric='correlation')
-    heatmap.fig.suptitle(name)
-    if save:
-        heatmap.fig.savefig(os.path.join(results_dir, name))
+    if perfs_corr:
+        heatmap = sns.clustermap(perfs, metric='correlation')
+        heatmap.fig.suptitle(name)
+        if save:
+            heatmap.fig.savefig(os.path.join(results_dir, name_expe, name))
 
-    cov = np.corrcoef(perfs.T)
-    hm_cov = sns.clustermap(cov)
-    title = name + " algos correlation"
-    hm_cov.fig.suptitle(title)
-    if save:
-        hm_cov.fig.savefig(os.path.join(results_dir, title))
+    if algos_corr:
+        cov = np.corrcoef(perfs.T)
+        hm_cov = sns.clustermap(cov)
+        title = name + " algos correlation"
+        hm_cov.fig.suptitle(title)
+        if save:
+            hm_cov.fig.savefig(os.path.join(results_dir, name_expe, title))
 
-    cov = np.corrcoef(perfs)
-    hm_cov = sns.clustermap(cov)
-    title = name + " tasks correlation"
-    hm_cov.fig.suptitle(title)
-    if save:
-        hm_cov.fig.savefig(os.path.join(results_dir, title))
+    if tasks_corr:
+        cov = np.corrcoef(perfs)
+        hm_cov = sns.clustermap(cov)
+        title = name + " tasks correlation"
+        hm_cov.fig.suptitle(title)
+        if save:
+            hm_cov.fig.savefig(os.path.join(results_dir, name_expe, title))
 
     plt.show()
 

@@ -12,6 +12,7 @@ import os
 
 from mlt.data import DAMatrix
 from mlt.data import CopulaCliqueDAMatrix
+from mlt.data import parse_cepairs_data
 from mlt.utils import save_fig
 from mlt.utils import get_theoretical_error_bar
 from mlt.utils import get_average_rank

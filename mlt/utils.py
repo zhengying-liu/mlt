@@ -42,7 +42,7 @@ def download_file_from_google_drive(id, destination):
 
 def save_fig(fig, name_expe=None, results_dir=None, filename=None):
     if results_dir is None:
-        results_dir = os.path.join(ROOT_DIR, os.pardir, 'results')
+        results_dir = get_default_results_dir()
     if filename is None:
         if name_expe is None:
             filename = 'learning-curves.jpg'
@@ -143,3 +143,8 @@ def inv_perm(perm):
     if isinstance(perm, np.ndarray):
         inv = np.array(inv)
     return inv
+
+
+def get_default_results_dir():
+    results_dir = os.path.join(ROOT_DIR, os.pardir, 'results')
+    return results_dir
