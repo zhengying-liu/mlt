@@ -298,6 +298,16 @@ class OptimalMetaLearner(S0A1MetaLearner):
             self.history.append((i_dataset, i_algo, perf))
 
 
+class MaxAverageRankMetaLearner(DefaultFitMetaLearner):
+    """Return the algorithm with best average rank."""
+
+    def meta_fit(self, da_matrix):
+        self.name = "max-avg-rank"
+        avg_rank = get_average_rank(da_matrix.perfs)
+        argsort = avg_rank.argsort()
+        self.indices_algo_to_reveal = list(argsort)
+
+
 # Now we want to create a prior ranking with D
 # We then vary the number of candidates in the final phase, choosing the top best in D
 # Among those we pick the best candidate in F
@@ -726,8 +736,11 @@ class CountMaxMetaLearner(DefaultFitMetaLearner):
         i_hat = self.dist_emp.argmax()
         self.indices_algo_to_reveal = [i_hat]
         
-    def rec_algo(self):
-        return self.dist_emp
+    def rec_algo(self, use_proba=False):
+        if use_proba:
+            return self.dist_emp
+        else:
+            return self.indices_algo_to_reveal[0]
 
 
 class SGDMetaLearner(DefaultFitMetaLearner):
@@ -744,7 +757,7 @@ class SGDMetaLearner(DefaultFitMetaLearner):
         def loss_fn(X): 
             X = X.to(device)
             # Compute prediction error
-            X = torch.tensor(X, dtype=torch.float32)
+            X = torch.as_tensor(X, dtype=torch.float32)
             loss = - torch.softmax(w, dim=-1).dot(X.mean(axis=0))
             if w.grad is not None:
                 w.grad.data.zero_()
