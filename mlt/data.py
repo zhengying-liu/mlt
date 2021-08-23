@@ -56,6 +56,12 @@ class DAMatrix(object):
             if not self.algos:
                 self.algos = algos
 
+    def set_best_algo(self, i_algo):
+        """Set `self.best_algo` to `i_algo` to indicate the best algorithm as
+        a ground truth.
+        """
+        self.best_algo = i_algo
+
     def append_dataset(self, dataset):
         pass
 
@@ -383,7 +389,7 @@ class CopulaCliqueDAMatrix(DAMatrix):
 class BinarizedMultivariateGaussianDAMatrix(DAMatrix):
 
     def __init__(self, mean, cov, n_datasets=1000, 
-                 name='BinarizedMultivariateGaussian'):
+                 name='BinarizedMultivariateGaussian', binarized=True):
         """
         Args:
           mean: 1-D array, mean vector of the Multi-vriate Gaussian 
@@ -397,10 +403,11 @@ class BinarizedMultivariateGaussianDAMatrix(DAMatrix):
 
         perfs = np.random.multivariate_normal(mean, cov, size=n_datasets)
         threshold = np.median(perfs)
-        binarized_perfs = (perfs > threshold).astype(int)
+        if binarized:
+            perfs = (perfs > threshold).astype(int)
 
         DAMatrix.__init__(self, 
-            perfs=binarized_perfs,
+            perfs=perfs,
             datasets=datasets, 
             algos=algos, 
             name=name, 
@@ -410,7 +417,7 @@ class BinarizedMultivariateGaussianDAMatrix(DAMatrix):
 class BetaDistributionDAMatrix(DAMatrix):
 
     def __init__(self, alpha_beta_pairs, n_datasets=2000,
-                 name='BetaDist'):
+                 name='IndepBeta'):
         """
         Args:
           alpha_beta_pairs: list of tuples of the form (alpha_i, beta_i), the
@@ -758,8 +765,8 @@ def get_all_real_datasets_da_matrix(datasets_dir=None):
     """
     if datasets_dir is None:
         datasets_dir = os.path.join(ROOT_DIR, os.pardir, 'datasets')
-        print("No datasets_dir given. Using datasets_dir={}"\
-            .format(datasets_dir))
+        # print("No datasets_dir given. Using datasets_dir={}"\
+        #     .format(datasets_dir))
     dataset_names = ['artificial_r50c20r20', 'AutoDL', 'AutoML', 'OpenML-Alors', 'Statlog']
     ds = [d for d in os.listdir(datasets_dir) if d in set(dataset_names)]
     da_matrices = []
