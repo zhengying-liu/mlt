@@ -19,6 +19,12 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import pandas as pd
+
+
+# Global parameters
+MARKERS = matplotlib.markers.MarkerStyle.filled_markers[1:5]
+COLORMAP = matplotlib.pyplot.cm.gist_rainbow
 
 
 def plot_curve_with_error_bars(li_mean, li_std, fig=None, label=None, xs=None, **kwargs):
@@ -1038,7 +1044,9 @@ def plot_meta_learner_comparison_sample_meta_test(
         repeat=25,
         train_size=0.5,
         save=False,
-        show=True):
+        show=True,
+        name_expe='meta-learner-comparison-sample-test',
+        ):
     """Plot comparison histogram of `meta_learners` on `da_matrix` for the `metric`."""
     if metric is None:
         metric = ArgmaxMeanMetric()
@@ -1090,8 +1098,172 @@ def plot_meta_learner_comparison_sample_meta_test(
     if show:
         plt.show()
 
-    name_expe = 'meta-learner-comparison-sample-test'
     filename = '{}.png'.format(da_name.lower())
 
     if save:
         save_fig(fig, name_expe=name_expe, filename=filename)
+
+    return means, stds
+
+
+def get_style(names):
+    style = {}
+
+    for idx, name in enumerate(names):
+        marker = MARKERS[idx % len(MARKERS)]
+        color = COLORMAP(idx / len(names))
+        style[name] = {'marker': marker, 'color': color}
+    
+    return style
+
+    
+# This function is adapted from https://github.com/NehzUx/autocv-analysis
+def show_score_per_task_with_error_bars(
+        agg_df, 
+        figsize=(12, 5),
+        bar_width=1.0,
+        sep_width=2.0,
+        save=False,
+        task_names=None,
+        participant_names=None,
+        xlabel_rotation=0,
+        legend_aside=True,
+        avg_ranks=None,
+        xlabel='Meta-datasets',
+        ylabel='empirical accuracy (EmpAcc)',
+        filename='score_per_task_with_error_bars.jpg',
+        name_expe=None,
+        ):
+    """Generate histograms with error bars.
+
+    Args: 
+      agg_df: a pandas.DataFrame object, should contain columns: 
+        participant_name, task_name, mean, std
+      phase: a tuple of (challenge, phase)
+      avg_ranks: dict, participant_name: avg_rank.
+
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+
+    if task_names is None:
+        task_names = agg_df['task_name'].unique()
+    n_tasks = len(task_names)
+    if participant_names is None:
+        participant_names = agg_df['participant_name'].unique()
+    n_participants = len(participant_names)
+
+    participant_style = get_style(participant_names)
+
+    df = agg_df.set_index(['participant_name', 'task_name'])
+    df = df[['mean', 'std']]
+
+    # Width for each task
+    width_per_task = bar_width * n_participants + sep_width
+
+    # Begin location of each participant on each task
+    begins = [ [p * bar_width + width_per_task * t 
+                    for t in range(n_tasks) ]
+                    for p in range(n_participants) ]
+
+    # Show legend once per participant
+    seen_labels = set()
+
+    # Draw a bar for each participant on each task
+    for p, participant_name in enumerate(participant_names):
+        for t, task_name in enumerate(task_names):
+            key = (participant_name, task_name)
+            if key in df.index:
+                alc_score = df.loc[key]['mean']
+                std = df.loc[key]['std']
+
+                begin = begins[p][t]
+                if participant_name not in seen_labels:
+                    if avg_ranks and participant_name in avg_ranks:
+                        ar = avg_ranks[participant_name]
+                        label = "{} - {:.2f}".format(participant_name, ar)
+                    else:
+                        label = participant_name
+                    seen_labels.add(participant_name)
+                else:
+                    label = None
+                color = participant_style[participant_name]['color']
+                ax.bar(begin, alc_score, label=label, 
+                    color=color,
+                )
+                ax.errorbar(begin, alc_score, yerr=std, ecolor='black',
+                            elinewidth=1, capsize=1.5)
+
+    # Set ticks for x-axis
+    ax.set_xticks(begins[n_participants // 2])
+    ax.set_xticklabels(task_names, rotation=xlabel_rotation)
+
+    # Axis labels
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+
+    # Show legends
+    if legend_aside:
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    else:
+        plt.legend(loc='best')
+    
+    # Save figure
+    if save:
+        filename = filename if filename is not None\
+                   else 'score_per_task_with_error_bars.jpg'
+        save_fig(fig, name_expe=name_expe, filename=filename)
+
+    return fig
+
+
+def plot_full_meta_learner_comparison(
+        da_matrices, 
+        meta_learners, 
+        name_expe='full-meta-learner-comparison',
+        show=True,
+        ylabel=None,
+        **kwargs,
+        ):
+    if not 'metric' in kwargs or kwargs['metric'] is None:
+        kwargs['metric'] = ArgmaxMeanMetric(name='emp-acc')
+    # Names of meta-learners
+    names_ml = [ml.name for ml in meta_learners]
+
+    task_names = []
+    participant_names = []
+    means = []
+    stds = []
+
+    for da_matrix in da_matrices:
+        ms, ss = plot_meta_learner_comparison_sample_meta_test(
+            da_matrix, meta_learners, show=False,
+            **kwargs,
+        )
+        for i in range(len(meta_learners)):
+            task_names.append(da_matrix.name)
+            participant_names.append(meta_learners[i].name)
+            means.append(ms[i])
+            stds.append(ss[i])
+
+    agg_df = pd.DataFrame({
+        'task_name': task_names,
+        'participant_name': participant_names,
+        'mean': means,
+        'std': stds,
+    })
+
+    save = kwargs['save'] if 'save' in kwargs else True
+
+    fig = show_score_per_task_with_error_bars(agg_df,
+            legend_aside=False,
+            ylabel=ylabel,
+        )
+
+    if save:
+        save_fig(fig, name_expe=name_expe)
+
+    if show:
+        fig.show()
+
+    return fig
+    

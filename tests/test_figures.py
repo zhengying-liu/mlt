@@ -10,6 +10,10 @@ from mlt.data import SpecialistDAMatrix
 from mlt.data import get_all_real_datasets_da_matrix
 from mlt.data import TrigonometricPolynomialDAMatrix
 from mlt.data import parse_cepairs_data
+from mlt.data import BinarizedMultivariateGaussianDAMatrix
+from mlt.data import BetaDistributionDAMatrix
+from mlt.data import DirichletDistributionDAMatrix
+from mlt.data import sample_trigo_polyn
 
 from mlt.figures import plot_score_vs_n_tasks_with_error_bars
 from mlt.figures import plot_score_vs_n_algos_with_error_bars
@@ -22,6 +26,7 @@ from mlt.figures import plot_overfit_curve
 from mlt.figures import plot_overfit_curve_sample_test
 from mlt.figures import plot_ofc_disjoint_tasks
 from mlt.figures import plot_meta_learner_comparison_sample_meta_test
+from mlt.figures import plot_full_meta_learner_comparison
 
 from mlt.meta_learner import MeanMetaLearner
 from mlt.meta_learner import TopkRankMetaLearner
@@ -31,11 +36,16 @@ from mlt.meta_learner import TopKD
 from mlt.meta_learner import SRM
 from mlt.meta_learner import CountMaxMetaLearner
 from mlt.meta_learner import SGDMetaLearner
+from mlt.meta_learner import MaxAverageRankMetaLearner
 
 from mlt.metric import ArgmaxMeanMetric
+from mlt.metric import AccuracyMetric
+
+from mlt.utils import timer
 
 import os
 import numpy as np
+import time
 
 
 DATASETS_DIR = os.path.join(ROOT_DIR, os.pardir, 'datasets')
@@ -292,20 +302,22 @@ def test_plot_meta_learner_comparison_sample_meta_test():
     ml_cm = CountMaxMetaLearner()
     ml_topk = TopkRankMetaLearner()
     ml_sgd = SGDMetaLearner()
+    ml_mar = MaxAverageRankMetaLearner()
     meta_learners = [
         ml_mean,
         ml_srm,
         ml_cm,
         ml_topk,
         ml_sgd,
+        ml_mar,
     ]
     # Metric
     metric = ArgmaxMeanMetric()
     # Configurations
-    n_datasets = 1000
+    n_datasets = 100
     n_algos = 20
-    repeat = 10
-    train_size = 0.3
+    repeat = 100
+    train_size = 0.5
     # Use TrigoPolyn
     da_matrices = []
     for i in range(5):
@@ -336,6 +348,125 @@ def test_plot_meta_learner_comparison_sample_meta_test():
         )
 
 
+@timer
+def test_plot_full_meta_learner_comparison():
+    # Meta-learners
+    ml_mean = MeanMetaLearner(name='mean')
+    ml_cm = CountMaxMetaLearner(name='count-max')
+    ml_mar = MaxAverageRankMetaLearner('max-avg-rank')
+    meta_learners = [
+        ml_mean,
+        ml_cm,
+        ml_mar,
+    ]
+
+    # Real-world datasets
+    real_das = get_all_real_datasets_da_matrix()
+    # CEpairs 
+    da_cepairs = parse_cepairs_data()
+    real_das.append(da_cepairs)
+    del real_das[4] # Remove artificial_r50c20r20
+    # del real_das[4] # Remove CEpairs
+
+    synt_das = []
+    # Independent Gaussian
+    n_datasets = 76
+    n_algos = 292
+    mean = [j / n_algos for j in range(1, n_algos + 1)]
+    cov = np.eye(n_algos)
+    indep_gauss = BinarizedMultivariateGaussianDAMatrix(
+        mean, cov, 
+        n_datasets=n_datasets,
+        binarized=False, 
+        name='IndepGauss'
+    )
+    indep_gauss.set_best_algo(n_algos - 1)
+    # inspect_da_matrix(indep_gauss)
+    synt_das.append(indep_gauss)
+
+    # Multi-variate Guassian
+    n_datasets = 15
+    n_datasets = 100
+    n_algos = 20
+    mean = [j / n_algos for j in range(1, n_algos + 1)]
+    M = np.eye(n_algos)
+    for j in range(n_algos):
+        for i in range(j + 1):
+            M[i, j] = 1
+    cov = M.dot(M.T) / (n_algos)
+    multi_gauss = BinarizedMultivariateGaussianDAMatrix(
+        mean, cov, 
+        n_datasets=n_datasets, 
+        binarized=False, 
+        name='MultiGauss'
+    )
+    multi_gauss.set_best_algo(n_algos - 1)
+    # inspect_da_matrix(multi_gauss)
+    synt_das.append(multi_gauss)
+
+    # Beta distribution
+    n_datasets = 22
+    n_algos = 24
+    alpha_beta_pairs = [(j, n_algos + 1 - j) for j in range(1, n_algos + 1)]
+    indep_beta = BetaDistributionDAMatrix(
+        alpha_beta_pairs,
+        n_datasets=n_datasets,
+        name='IndepBeta',
+    )
+    indep_beta.set_best_algo(n_algos - 1)
+    # inspect_da_matrix(indep_beta)
+    synt_das.append(indep_beta)
+
+    # Dirichlet distribution
+    n_datasets = 30
+    n_algos = 17
+    alpha = [j for j in range(1, n_algos + 1)]
+    dirich = DirichletDistributionDAMatrix(
+        alpha,
+        n_datasets=n_datasets,
+        name='Dirichlet',
+    )
+    dirich.set_best_algo(n_algos - 1)
+    # inspect_da_matrix(dirich)
+    synt_das.append(dirich)
+
+    # TrigoPolyn
+    n_datasets = 8608
+    n_algos = 163
+    funcs = sample_trigo_polyn(A=n_algos, K=5)
+    for j, f in enumerate(funcs):
+        f.coeffs[0] = (j + 1) / n_algos
+    trigo_polyn = TrigonometricPolynomialDAMatrix(
+        funcs=funcs,
+        n_datasets=n_datasets,
+    )
+    trigo_polyn.set_best_algo(n_algos - 1)
+    # inspect_da_matrix(trigo_polyn)
+    synt_das.append(trigo_polyn)
+
+    # Configuration
+    repeat = 100
+    train_size = 0.5
+    
+    # plot_full_meta_learner_comparison(real_das, meta_learners,
+    #     repeat=repeat,
+    #     train_size=train_size,
+    #     save=True,
+    #     show=True,
+    # )
+    name_metric = 'accuracy (Acc)'
+
+    plot_full_meta_learner_comparison(synt_das, meta_learners,
+        repeat=repeat,
+        train_size=train_size,
+        save=True,
+        show=True,
+        metric=AccuracyMetric(name=name_metric),
+        ylabel=name_metric,
+    )
+
+
+
 if __name__ == '__main__':
     # test_plot_score_vs_n_tasks_with_error_bars()
     # test_plot_score_vs_n_algos_with_error_bars()
@@ -349,4 +480,5 @@ if __name__ == '__main__':
     # test_plot_overfit_curve()
     # test_plot_overfit_curve_sample_test()
     # test_plot_ofc_disjoint_tasks()
-    test_plot_meta_learner_comparison_sample_meta_test()
+    # test_plot_meta_learner_comparison_sample_meta_test()
+    test_plot_full_meta_learner_comparison()
