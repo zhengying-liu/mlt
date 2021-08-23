@@ -4,6 +4,7 @@
 import numpy as np
 import os
 import requests
+import time
 
 from mlt import ROOT_DIR
 
@@ -148,3 +149,12 @@ def inv_perm(perm):
 def get_default_results_dir():
     results_dir = os.path.join(ROOT_DIR, os.pardir, 'results')
     return results_dir
+
+
+def timer(func):
+    def wrapper(*args, **kwargs):
+        begin = time.time()
+        func(*args, **kwargs)
+        end = time.time()
+        print("Time used {:.4f}s.".format(end - begin))
+    return wrapper
