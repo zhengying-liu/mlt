@@ -56,10 +56,13 @@ def plot_curve_with_error_bars(li_mean, li_std, fig=None, label=None, xs=None, *
     return fig
 
 
-def inspect_da_matrix(da_matrix, results_dir="../results", save=True, 
+def inspect_da_matrix(da_matrix, results_dir="../results", 
+        save=False, 
         perfs_corr=False,
         algos_corr=False,
-        tasks_corr=False):
+        tasks_corr=False,
+        sort_algos=True,
+        ):
     """Inspect DA matrix. Plot the mean and std of the performance of each 
     algorithm. Plot cluster map for:
         - perfomance correlation
@@ -71,6 +74,10 @@ def inspect_da_matrix(da_matrix, results_dir="../results", save=True,
         results_dir = get_default_results_dir()
     perfs = np.array(da_matrix.perfs)
     li_mean = np.mean(perfs, axis=0)
+    if sort_algos:
+        argsort = li_mean.argsort()
+        li_mean = li_mean[argsort]
+        perfs = perfs[:, argsort]
     li_std = np.std(perfs, axis=0)
 
     fig = plot_curve_with_error_bars(li_mean, li_std)

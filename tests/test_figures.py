@@ -360,6 +360,8 @@ def test_plot_full_meta_learner_comparison():
         ml_mar,
     ]
 
+    inspect = True
+
     # Real-world datasets
     real_das = get_all_real_datasets_da_matrix()
     # CEpairs 
@@ -381,7 +383,6 @@ def test_plot_full_meta_learner_comparison():
         name='IndepGauss'
     )
     indep_gauss.set_best_algo(n_algos - 1)
-    # inspect_da_matrix(indep_gauss)
     synt_das.append(indep_gauss)
 
     # Multi-variate Guassian
@@ -401,7 +402,6 @@ def test_plot_full_meta_learner_comparison():
         name='MultiGauss'
     )
     multi_gauss.set_best_algo(n_algos - 1)
-    # inspect_da_matrix(multi_gauss)
     synt_das.append(multi_gauss)
 
     # Beta distribution
@@ -414,7 +414,6 @@ def test_plot_full_meta_learner_comparison():
         name='IndepBeta',
     )
     indep_beta.set_best_algo(n_algos - 1)
-    # inspect_da_matrix(indep_beta)
     synt_das.append(indep_beta)
 
     # Dirichlet distribution
@@ -427,7 +426,6 @@ def test_plot_full_meta_learner_comparison():
         name='Dirichlet',
     )
     dirich.set_best_algo(n_algos - 1)
-    # inspect_da_matrix(dirich)
     synt_das.append(dirich)
 
     # TrigoPolyn
@@ -441,8 +439,13 @@ def test_plot_full_meta_learner_comparison():
         n_datasets=n_datasets,
     )
     trigo_polyn.set_best_algo(n_algos - 1)
-    # inspect_da_matrix(trigo_polyn)
     synt_das.append(trigo_polyn)
+
+    if inspect:
+        for da in real_das:
+            inspect_da_matrix(da)
+        for da in synt_das:
+            inspect_da_matrix(da)
 
     # Configuration
     repeat = 100
@@ -456,14 +459,14 @@ def test_plot_full_meta_learner_comparison():
     # )
     name_metric = 'accuracy (Acc)'
 
-    plot_full_meta_learner_comparison(synt_das, meta_learners,
-        repeat=repeat,
-        train_size=train_size,
-        save=True,
-        show=True,
-        metric=AccuracyMetric(name=name_metric),
-        ylabel=name_metric,
-    )
+    # plot_full_meta_learner_comparison(synt_das, meta_learners,
+    #     repeat=repeat,
+    #     train_size=train_size,
+    #     save=True,
+    #     show=True,
+    #     metric=AccuracyMetric(name=name_metric),
+    #     ylabel=name_metric,
+    # )
 
 
 
